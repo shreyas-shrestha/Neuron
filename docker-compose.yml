@@ -1,0 +1,24 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - neuron-db:/app/data
+    environment:
+      - DATABASE_URL=sqlite:////app/data/neuron.db
+      - SECRET_KEY=change-me-docker-compose-secret
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  neuron-db:

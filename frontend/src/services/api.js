@@ -1,0 +1,98 @@
+import axios from "axios";
+
+const api = axios.create({
+  baseURL: "/api/v1",
+  headers: { "Content-Type": "application/json" },
+});
+
+api.interceptors.request.use((config) => {
+  const t = localStorage.getItem("neuron_token");
+  if (t) config.headers.Authorization = `Bearer ${t}`;
+  return config;
+});
+
+export async function login(email, password) {
+  const { data } = await api.post("/auth/login", { email, password });
+  localStorage.setItem("neuron_token", data.access_token);
+  return data;
+}
+
+export async function fetchDashboard() {
+  const { data } = await api.get("/dashboard/summary");
+  return data;
+}
+
+export async function listModels() {
+  const { data } = await api.get("/models");
+  return data;
+}
+
+export async function registerModel(payload) {
+  const { data } = await api.post("/models/register", payload);
+  return data;
+}
+
+export async function runAnalysis(payload) {
+  const { data } = await api.post("/analysis/run", payload);
+  return data;
+}
+
+export async function analysisStatus(id) {
+  const { data } = await api.get(`/analysis/${id}/status`);
+  return data;
+}
+
+export async function analysisResults(id) {
+  const { data } = await api.get(`/analysis/${id}/results`);
+  return data;
+}
+
+export async function trajectoryPreview(modelId, text) {
+  const { data } = await api.post("/analysis/trajectory/preview", { model_id: modelId, text });
+  return data;
+}
+
+export async function trajectoryCompare(modelId, textA, textB) {
+  const { data } = await api.post("/analysis/trajectory/compare", {
+    model_id: modelId,
+    text_a: textA,
+    text_b: textB,
+  });
+  return data;
+}
+
+export async function generateReport(payload) {
+  const { data } = await api.post("/reports/generate", payload);
+  return data;
+}
+
+export function pdfUrl(reportId) {
+  return `/api/v1/reports/${reportId}/pdf`;
+}
+
+export async function fetchMe() {
+  const { data } = await api.get("/auth/me");
+  return data;
+}
+
+export async function listApiKeys() {
+  const { data } = await api.get("/auth/api-keys");
+  return data;
+}
+
+export async function createApiKey(body) {
+  const { data } = await api.post("/auth/api-keys", body);
+  return data;
+}
+
+export async function revokeApiKey(keyId) {
+  await api.delete(`/auth/api-keys/${keyId}`);
+}
+
+/** JWT-authenticated: retraining checkpoints for a model (UUID or registry name). */
+export async function getSdkModelHistory(modelId) {
+  const { data } = await api.get(`/sdk/models/${encodeURIComponent(modelId)}/history`);
+  return data;
+}
+
+export default api;
