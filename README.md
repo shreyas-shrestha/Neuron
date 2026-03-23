@@ -1,6 +1,6 @@
 # Neuron
 
-**Neuron** is an MVP mechanistic interpretability compliance platform: audit what fine-tuned LLMs encode internally, surface compliance-style risk flags, and export regulator-ready PDFs.
+**Neuron** is an mechanistic interpretability compliance platform: audit what fine-tuned LLMs encode internally, surface compliance-style risk flags, and export regulator-ready PDFs.
 
 ## Stack
 
