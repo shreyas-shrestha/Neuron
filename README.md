@@ -63,7 +63,3 @@ neuron/
 ├── docker-compose.yml
 └── README.md
 ```
-
-## License
-
-Proprietary / demo — adjust for your organization.
