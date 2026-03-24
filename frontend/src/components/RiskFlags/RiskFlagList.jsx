@@ -17,11 +17,33 @@ const badgeForLevel = {
   LOW: "bg-emerald-500/15 text-neuron-low border border-emerald-500/35",
 };
 
+function ShieldIcon({ className = "w-10 h-10" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"
+      />
+    </svg>
+  );
+}
+
 export default function RiskFlagList({ flags, onAddReport }) {
   const [open, setOpen] = useState({});
 
   if (!flags?.length) {
-    return <div className="text-neuron-secondary text-sm font-sans">No behavior flags</div>;
+    return (
+      <div className="flex flex-col items-center text-center py-10 px-4 max-w-[320px] mx-auto">
+        <ShieldIcon className="w-10 h-10 text-neuron-accent shrink-0" />
+        <h3 className="font-display font-semibold text-[18px] text-neuron-primary mt-4" style={{ fontWeight: 600 }}>
+          No behavior flags
+        </h3>
+        <p className="text-[14px] text-neuron-secondary mt-2 leading-relaxed font-sans">
+          This model&apos;s analysis found no significant behavioral anomalies.
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -31,7 +53,7 @@ export default function RiskFlagList({ flags, onAddReport }) {
         const L = String(f.risk_level || "LOW").toUpperCase();
         const bLeft = borderForLevel[L] || borderForLevel.LOW;
         const bBadge = badgeForLevel[L] || badgeForLevel.LOW;
-        const cat = displayRiskCategory(f.risk_category);
+        const cat = displayRiskCategory(f.risk_category) || f.risk_category || "—";
         const desc = displayFlagDescription(f);
         const al = f.affected_layers || [];
         const layers = al.join(", ") || "—";

@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { motion } from "framer-motion";
 import LayerTrajectoryChart from "../components/LayerTrajectory/LayerTrajectoryChart.jsx";
 import FeatureHeatmap from "../components/FeatureMap/FeatureHeatmap.jsx";
 import RiskFlagList from "../components/RiskFlags/RiskFlagList.jsx";
@@ -19,23 +18,19 @@ import { useDebounced } from "../hooks/useDebounced.js";
 import { bciRiskLabel, bciTextClass, riskBadgeClass } from "../utils/bciDisplay.js";
 
 const TABS = [
-  { id: "layer", label: "Layer Trajectory" },
-  { id: "feature", label: "Feature Map" },
+  { id: "overview", label: "Overview" },
   { id: "flags", label: "Behavior Flags" },
-  { id: "retraining", label: "Retraining History" },
-  { id: "explorer", label: "Input Explorer" },
+  { id: "history", label: "History" },
 ];
 
-function formatTs(iso) {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  } catch {
-    return "—";
-  }
+function probeSummaryLine(probe) {
+  if (!probe || typeof probe !== "object") return null;
+  const interp = probe.interpretation;
+  const auc =
+    typeof probe.auc === "number" ? probe.auc.toFixed(2) : probe.auc != null ? String(probe.auc) : null;
+  if (!interp && !auc) return null;
+  if (interp && auc) return `${interp} (AUC ${auc})`;
+  return interp || (auc ? `AUC ${auc}` : null);
 }
 
 export default function Analysis() {
@@ -44,7 +39,7 @@ export default function Analysis() {
   const ringDemo = searchParams.get("demo") === "1";
   const untrainedParam = searchParams.get("untrained") === "1";
   const [pollNonce, setPollNonce] = useState(0);
-  const [mainTab, setMainTab] = useState("layer");
+  const [mainTab, setMainTab] = useState("overview");
   const [status, setStatus] = useState(null);
   const [results, setResults] = useState(null);
   const [modelId, setModelId] = useState("");
@@ -54,6 +49,8 @@ export default function Analysis() {
   );
   const [preview, setPreview] = useState(null);
   const [compare, setCompare] = useState(null);
+  const [showFeatureMap, setShowFeatureMap] = useState(false);
+  const [showExplorer, setShowExplorer] = useState(false);
   const debounced = useDebounced(liveText, 500);
 
   const { data: models } = useQuery({ queryKey: ["models"], queryFn: listModels });
@@ -115,7 +112,7 @@ export default function Analysis() {
   const { data: sdkHistory } = useQuery({
     queryKey: ["sdk-history", modelId],
     queryFn: () => getSdkModelHistory(modelId),
-    enabled: Boolean(modelId) && mainTab === "retraining",
+    enabled: Boolean(modelId) && mainTab === "history",
   });
 
   const traj = results?.trajectory;
@@ -129,64 +126,44 @@ export default function Analysis() {
   const featCount = traj?.heatmap_feature_ids?.length || preview?.heatmap_feature_ids?.length;
   const bci = results ? Math.round(results.overall_risk_score) : null;
   const riskLabel = results ? bciRiskLabel(results.overall_risk_score) : null;
+  const probeLine = probeSummaryLine(probe);
+
+  const statusLabel =
+    status?.status === "running" && status?.progress != null
+      ? `Running ${Math.round((status.progress || 0) * 100)}%`
+      : status?.status === "complete"
+        ? "Complete"
+        : status?.status === "failed"
+          ? "Failed"
+          : status?.status || "…";
 
   return (
     <div className="space-y-5">
-      <header className="neuron-card-sm p-5 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 transition-all duration-150 hover:-translate-y-px hover:shadow-lg">
+      <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 border-b border-neuron-border pb-5">
         <div className="min-w-0 space-y-2">
-          <nav className="text-[13px] text-neuron-mutedText font-sans flex flex-wrap items-center gap-1">
-            <Link to="/models" className="hover:text-neuron-accent transition-colors">
-              Models
-            </Link>
-            <span className="text-neuron-border-strong">/</span>
-            <span className="text-neuron-secondary truncate max-w-[200px]">{modelName}</span>
-            <span className="text-neuron-border-strong">/</span>
-            <span className="text-neuron-primary">Analysis</span>
-          </nav>
-          <h1 className="font-display font-semibold text-[20px] text-neuron-primary truncate">
-            {results ? `Analysis · ${modelName}` : `Run ${id?.slice(0, 8)}…`}
+          <h1 className="font-display font-semibold text-[18px] text-neuron-primary" style={{ fontWeight: 600 }}>
+            {modelName}
           </h1>
-          <div className="flex flex-wrap items-center gap-2 text-[13px] font-sans text-neuron-secondary">
-            <span>{formatTs(results?.completed_at || results?.created_at)}</span>
-            <span
-              className={`inline-flex items-center text-[11px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                status?.status === "complete"
-                  ? "bg-emerald-500/15 text-neuron-success border-emerald-500/30"
-                  : status?.status === "running"
-                    ? "bg-amber-500/15 text-neuron-warning border-amber-500/30"
-                    : status?.status === "failed"
-                      ? "bg-red-500/15 text-red-300 border-red-500/35"
-                      : "bg-neuron-muted text-neuron-secondary border-neuron-border"
-              }`}
-            >
-              {status?.status || "…"}
-            </span>
-            {status?.progress != null && status.status === "running" && (
-              <span className="font-mono text-neuron-mutedText">
-                {Math.round((status.progress || 0) * 100)}%
-              </span>
-            )}
-          </div>
-          {results && (
-            <Link
-              to={`/reports/${results.id}`}
-              className="inline-block text-[13px] font-medium text-neuron-accent hover:text-neuron-accent-hover"
-            >
-              Export behavior report →
-            </Link>
-          )}
+          <span
+            className={`inline-flex items-center text-[11px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+              status?.status === "complete"
+                ? "bg-emerald-500/15 text-neuron-success border-emerald-500/30"
+                : status?.status === "running"
+                  ? "bg-amber-500/15 text-neuron-warning border-amber-500/30"
+                  : status?.status === "failed"
+                    ? "bg-red-500/15 text-red-300 border-red-500/35"
+                    : "bg-neuron-muted text-neuron-secondary border-neuron-border"
+            }`}
+          >
+            {statusLabel}
+          </span>
         </div>
-
-        <div className="shrink-0 text-left lg:text-right space-y-2">
-          <div className="text-[12px] text-neuron-mutedText font-sans">Behavior Change Index</div>
-          <motion.div
-            className={`font-mono text-[36px] font-bold leading-none ${bci != null ? bciTextClass(bci) : "text-neuron-mutedText"}`}
-            initial={{ opacity: 0.3 }}
-            animate={{ opacity: 1 }}
-            key={results?.overall_risk_score}
+        <div className="shrink-0 text-left sm:text-right space-y-1">
+          <div
+            className={`font-mono text-[40px] font-bold leading-none ${bci != null ? bciTextClass(bci) : "text-neuron-mutedText"}`}
           >
             {bci ?? "—"}
-          </motion.div>
+          </div>
           {riskLabel && (
             <div>
               <span
@@ -200,14 +177,14 @@ export default function Analysis() {
       </header>
 
       {status?.status === "failed" && (
-        <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-4 text-left border-l-[4px] border-l-red-500">
-          <h2 className="text-[15px] font-semibold text-red-200 font-display">Analysis Failed</h2>
-          <p className="mt-2 text-[13px] text-red-100/90 font-sans leading-relaxed">
+        <div className="w-full rounded-md border border-red-500/40 bg-red-500/15 px-5 py-5 text-left border-l-[4px] border-l-red-500">
+          <h2 className="text-[16px] font-semibold text-red-100 font-display">Analysis Failed</h2>
+          <p className="mt-2 text-[14px] text-red-100/90 font-sans leading-relaxed">
             {status.error_message || "An unexpected error occurred during analysis."}
           </p>
           <button
             type="button"
-            className="mt-4 btn-secondary text-[13px] border-red-500/40 text-red-100 hover:bg-red-500/20"
+            className="mt-5 btn-secondary text-[13px] border-red-500/50 text-red-100 hover:bg-red-500/25"
             onClick={async () => {
               try {
                 await analysisRetry(id);
@@ -280,23 +257,7 @@ export default function Analysis() {
         </div>
       )}
 
-      {mainTab === "retraining" && (
-        <section className="neuron-card-sm p-5 space-y-3 border border-neuron-border transition-all duration-150 hover:-translate-y-px hover:shadow-lg">
-          <h2 className="font-display font-semibold text-[15px] text-neuron-primary">Retraining timeline</h2>
-          <p className="text-[13px] text-neuron-secondary font-sans leading-relaxed">
-            Behavior change index (BCI) across SDK checkpoints for this model. Add{" "}
-            <code className="font-mono text-[12px] text-neuron-accent bg-neuron-accent-light/50 px-1 rounded">?demo=1</code>{" "}
-            to the URL for the Ring reference callout.
-          </p>
-          {!modelId ? (
-            <div className="text-sm text-neuron-secondary font-sans">Load analysis to attach a model id…</div>
-          ) : (
-            <RetrainingTimeline checkpoints={sdkHistory?.checkpoints || []} demoMode={ringDemo} />
-          )}
-        </section>
-      )}
-
-      {mainTab === "layer" && (
+      {mainTab === "overview" && (
         <div className="space-y-5">
           <section className="neuron-card-sm p-5 border border-neuron-border transition-all duration-150 hover:-translate-y-px hover:shadow-lg">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
@@ -309,106 +270,122 @@ export default function Analysis() {
             <div className="h-[280px] w-full min-h-[280px]">
               <LayerTrajectoryChart curve={curve} novelFeatures={novel} />
             </div>
-            <p className="mt-3 text-[12px] text-neuron-mutedText font-sans">
-              Novel feature markers highlight layers with emerging sparse codes.
-            </p>
           </section>
 
-          {probe && Object.keys(probe).length > 0 && (
-            <section className="neuron-card-sm p-5 border border-neuron-border text-[13px] transition-all duration-150">
-              <h3 className="font-display font-semibold text-[14px] text-neuron-primary mb-2">Trajectory separability</h3>
-              <div className="space-y-1 font-mono text-neuron-secondary text-[12px]">
-                <p>
-                  AUC: {typeof probe.auc === "number" ? probe.auc.toFixed(2) : probe.auc}
-                  {probe.name_anonymization_applied ? " — name anonymization applied to probe inputs" : ""}
+          {probeLine && (
+            <p className="text-[13px] text-neuron-secondary font-sans">
+              Trajectory separability:{" "}
+              <span className="text-neuron-accent font-medium ml-1">{probeLine}</span>
+            </p>
+          )}
+
+          <div className="border border-neuron-border rounded-md bg-neuron-bg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowFeatureMap((v) => !v)}
+              className="w-full text-left px-4 py-3 text-[13px] font-medium font-sans text-neuron-primary hover:bg-neuron-muted/50 flex justify-between items-center"
+            >
+              Show feature map {showFeatureMap ? "▴" : "▾"}
+            </button>
+            {showFeatureMap && (
+              <div className="px-4 pb-4 border-t border-neuron-border pt-4">
+                <p className="text-[12px] text-neuron-secondary mb-3 font-sans">Click any cell for token attribution.</p>
+                <FeatureHeatmap
+                  heatmap={traj?.heatmap || preview?.heatmap}
+                  featureIds={traj?.heatmap_feature_ids || preview?.heatmap_feature_ids}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="border border-neuron-border rounded-md bg-neuron-bg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowExplorer((v) => !v)}
+              className="w-full text-left px-4 py-3 text-[13px] font-medium font-sans text-neuron-primary hover:bg-neuron-muted/50 flex justify-between items-center"
+            >
+              Compare two inputs {showExplorer ? "▴" : "▾"}
+            </button>
+            {showExplorer && (
+              <div className="px-4 pb-4 border-t border-neuron-border pt-4 space-y-4">
+                <p className="text-[12px] text-neuron-secondary font-sans">
+                  Debounced live trajectory. Compare two near-identical inputs.
                 </p>
-                {probe.interpretation && (
-                  <p className="text-neuron-primary font-sans">
-                    Interpretation: <span className="text-neuron-accent">{probe.interpretation}</span>
-                  </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="block">
+                    <span className="text-[12px] text-neuron-mutedText font-sans">Input A</span>
+                    <textarea
+                      className="input-neuron mt-1.5 font-sans min-h-[80px] resize-y"
+                      value={liveText}
+                      onChange={(e) => setLiveText(e.target.value)}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[12px] text-neuron-mutedText font-sans">Input B</span>
+                    <textarea
+                      className="input-neuron mt-1.5 font-sans min-h-[80px] resize-y"
+                      value={compareB}
+                      onChange={(e) => setCompareB(e.target.value)}
+                    />
+                  </label>
+                </div>
+                <button type="button" onClick={runCompare} className="btn-primary w-full h-10">
+                  Compare trajectories
+                </button>
+                {compare && (
+                  <div className="space-y-4">
+                    <div className="font-mono text-sm text-neuron-moderate">
+                      Divergence: {compare.divergence?.toFixed?.(3)}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="rounded-md border border-neuron-border p-3 bg-neuron-subtle/50">
+                        <div className="h-[200px]">
+                          <LayerTrajectoryChart curve={compare.trajectory_a?.per_layer_curve} novelFeatures={{}} />
+                        </div>
+                      </div>
+                      <div className="rounded-md border border-neuron-border p-3 bg-neuron-subtle/50">
+                        <div className="h-[200px]">
+                          <LayerTrajectoryChart curve={compare.trajectory_b?.per_layer_curve} novelFeatures={{}} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
-              <pre className="mt-3 text-[11px] font-mono bg-neuron-muted p-3 rounded-sm border border-neuron-border overflow-x-auto text-neuron-primary">
-                {JSON.stringify(probe || {}, null, 2)}
-              </pre>
-              <div className="text-[11px] font-mono text-neuron-mutedText mt-2">Disparity summary</div>
-              <pre className="mt-1 text-[11px] font-mono bg-neuron-muted p-3 rounded-sm border border-neuron-border overflow-x-auto text-neuron-primary">
-                {JSON.stringify(traj?.disparity || {}, null, 2)}
-              </pre>
-            </section>
-          )}
+            )}
+          </div>
         </div>
       )}
 
-      {mainTab === "feature" && (
-        <section className="neuron-card-sm p-5 border border-neuron-border transition-all duration-150 hover:-translate-y-px hover:shadow-lg">
-          <h2 className="font-display font-semibold text-[15px] text-neuron-primary">Feature activation heatmap</h2>
-          <p className="text-[13px] text-neuron-secondary mt-1 font-sans leading-relaxed">
-            Click any cell to see which tokens drove that feature.
-          </p>
-          <div className="mt-4">
-            <FeatureHeatmap
-              heatmap={traj?.heatmap || preview?.heatmap}
-              featureIds={traj?.heatmap_feature_ids || preview?.heatmap_feature_ids}
-            />
-          </div>
-        </section>
-      )}
-
       {mainTab === "flags" && (
-        <section className="neuron-card-sm p-5 border border-neuron-border transition-all duration-150 hover:-translate-y-px hover:shadow-lg">
-          <h2 className="font-display font-semibold text-[15px] text-neuron-primary mb-4">Behavior flags</h2>
+        <section className="neuron-card-sm p-5 border border-neuron-border space-y-4 transition-all duration-150 hover:-translate-y-px hover:shadow-lg">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-display font-semibold text-[15px] text-neuron-primary">Behavior flags</h2>
+            {results?.id && (
+              <Link
+                to={`/reports/${results.id}`}
+                className="btn-secondary text-[12px] min-h-[32px] py-1.5 px-3"
+              >
+                Export behavior report
+              </Link>
+            )}
+          </div>
           <RiskFlagList flags={results?.risk_flags || []} />
         </section>
       )}
 
-      {mainTab === "explorer" && (
-        <section className="neuron-card-sm p-5 space-y-4 border border-neuron-border transition-all duration-150 hover:-translate-y-px hover:shadow-lg">
-          <h2 className="font-display font-semibold text-[15px] text-neuron-primary">Input explorer</h2>
+      {mainTab === "history" && (
+        <section className="neuron-card-sm p-5 space-y-3 border border-neuron-border transition-all duration-150 hover:-translate-y-px hover:shadow-lg">
+          <h2 className="font-display font-semibold text-[15px] text-neuron-primary">Retraining timeline</h2>
           <p className="text-[13px] text-neuron-secondary font-sans leading-relaxed">
-            Debounced live trajectory for this model. Compare two near-identical inputs.
+            BCI across SDK checkpoints. Add{" "}
+            <code className="font-mono text-[12px] text-neuron-accent bg-neuron-accent-light/50 px-1 rounded">?demo=1</code>{" "}
+            for the Ring reference callout.
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className="block">
-              <span className="text-[12px] text-neuron-mutedText font-sans">Input A</span>
-              <textarea
-                className="input-neuron mt-1.5 font-sans min-h-[80px] resize-y"
-                value={liveText}
-                onChange={(e) => setLiveText(e.target.value)}
-              />
-            </label>
-            <label className="block">
-              <span className="text-[12px] text-neuron-mutedText font-sans">Input B</span>
-              <textarea
-                className="input-neuron mt-1.5 font-sans min-h-[80px] resize-y"
-                value={compareB}
-                onChange={(e) => setCompareB(e.target.value)}
-              />
-            </label>
-          </div>
-          <button type="button" onClick={runCompare} className="btn-primary w-full h-10">
-            Compare trajectories
-          </button>
-          {compare && (
-            <div className="space-y-4">
-              <div className="font-mono text-sm text-neuron-moderate">
-                Divergence: {compare.divergence?.toFixed?.(3)}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="rounded-md border border-neuron-border p-3 bg-neuron-subtle/50">
-                  <div className="text-[11px] font-mono text-neuron-mutedText uppercase tracking-wider mb-2">Input A</div>
-                  <div className="h-[200px]">
-                    <LayerTrajectoryChart curve={compare.trajectory_a?.per_layer_curve} novelFeatures={{}} />
-                  </div>
-                </div>
-                <div className="rounded-md border border-neuron-border p-3 bg-neuron-subtle/50">
-                  <div className="text-[11px] font-mono text-neuron-mutedText uppercase tracking-wider mb-2">Input B</div>
-                  <div className="h-[200px]">
-                    <LayerTrajectoryChart curve={compare.trajectory_b?.per_layer_curve} novelFeatures={{}} />
-                  </div>
-                </div>
-              </div>
-            </div>
+          {!modelId ? (
+            <div className="text-sm text-neuron-secondary font-sans">Load analysis to attach a model id…</div>
+          ) : (
+            <RetrainingTimeline checkpoints={sdkHistory?.checkpoints || []} demoMode={ringDemo} />
           )}
         </section>
       )}

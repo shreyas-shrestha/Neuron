@@ -2,11 +2,9 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { fetchDashboard, listModels, runAnalysis } from "../services/api.js";
-import { displayRiskCategory } from "../uiLabels.js";
+import { fetchDashboard, listModels } from "../services/api.js";
 import { bciRiskLabel, bciTextClass, riskBadgeClass } from "../utils/bciDisplay.js";
 
-/* Saturated slices + clear separation on dark UI */
 const PIE_COLORS = {
   LOW: "#34d399",
   MEDIUM: "#facc15",
@@ -15,7 +13,6 @@ const PIE_COLORS = {
   CRITICAL: "#c084fc",
 };
 
-/** Recharts default tooltip often keeps black text; force light copy. */
 function RiskPieTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const { name, value } = payload[0];
@@ -50,15 +47,6 @@ function NeuralIcon() {
   );
 }
 
-function trendWeekPct(trend) {
-  if (!trend?.length || trend.length < 2) return null;
-  const a = trend[0]?.count ?? 0;
-  const b = trend[trend.length - 1]?.count ?? 0;
-  if (a === 0 && b === 0) return 0;
-  if (a === 0) return 100;
-  return Math.round(((b - a) / a) * 100);
-}
-
 function formatTime(iso) {
   if (!iso) return "—";
   try {
@@ -69,27 +57,12 @@ function formatTime(iso) {
   }
 }
 
-function MetricCard({ label, value, deltaLabel, deltaPositive }) {
-  const showDelta = deltaLabel != null && deltaLabel !== "";
+function MetricCard({ label, value }) {
   return (
     <div className="relative bg-neuron-bg border border-neuron-border rounded-md shadow-sm p-5 transition-all duration-150 ease-out hover:-translate-y-px hover:shadow-lg overflow-hidden">
-      <div className="absolute top-0 right-0 w-1 h-full bg-neuron-accent/25 opacity-0 hover:opacity-100 transition-opacity pointer-events-none" aria-hidden />
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-[13px] text-neuron-secondary font-sans">{label}</span>
-      </div>
-      <div className="mt-3 flex flex-wrap items-end gap-2">
+      <span className="text-[13px] text-neuron-secondary font-sans">{label}</span>
+      <div className="mt-3">
         <span className="font-mono text-[28px] font-bold text-neuron-primary leading-none">{value}</span>
-        {showDelta && (
-          <span
-            className={`text-[11px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-              deltaPositive
-                ? "bg-emerald-500/15 text-neuron-success border border-emerald-500/30"
-                : "bg-red-500/15 text-neuron-danger border border-red-500/30"
-            }`}
-          >
-            {deltaLabel}
-          </span>
-        )}
       </div>
     </div>
   );
@@ -99,15 +72,6 @@ export default function Dashboard() {
   const { data: dash, isLoading } = useQuery({ queryKey: ["dash"], queryFn: fetchDashboard });
   const { data: models, isLoading: modelsLoading } = useQuery({ queryKey: ["models"], queryFn: listModels });
   const [copied, setCopied] = useState(false);
-
-  async function quickRun(modelId) {
-    const { job_id } = await runAnalysis({
-      model_id: modelId,
-      text_samples: [],
-      analysis_type: "full",
-    });
-    window.location.href = `/analysis/${job_id}`;
-  }
 
   const modelById = useMemo(() => {
     const m = {};
@@ -128,14 +92,9 @@ export default function Dashboard() {
   const saeProgress = totalSae ? Math.min(100, (trained.length / totalSae) * 100) : 0;
   const saeCmd = "cd backend && python scripts/train_sae_layer0.py --layer 0";
 
-  const weekDelta = trendWeekPct(dash?.trend_data);
   const highRiskCount =
     (dash?.risk_distribution?.HIGH || 0) + (dash?.risk_distribution?.CRITICAL || 0);
   const recent = dash?.recent_analyses || [];
-  const avgBci =
-    recent.length > 0
-      ? recent.reduce((acc, r) => acc + (Number(r.risk) || 0), 0) / recent.length
-      : 0;
 
   const showEmptyModels = !modelsLoading && Array.isArray(models) && models.length === 0;
 
@@ -153,47 +112,24 @@ export default function Dashboard() {
     return (
       <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center text-center max-w-md mx-auto px-4">
         <NeuralIcon />
-        <h2 className="font-display font-semibold text-[20px] text-neuron-primary mt-6">No models yet</h2>
-        <p className="text-[15px] text-neuron-secondary mt-2 leading-relaxed max-w-[320px]">
+        <h2 className="font-display font-semibold text-[18px] text-neuron-primary mt-6">No models yet</h2>
+        <p className="text-[14px] text-neuron-secondary mt-2 leading-relaxed max-w-[300px] font-sans">
           Register your first model to start monitoring behavioral drift.
         </p>
-        <div className="mt-8 flex flex-col sm:flex-row gap-3 w-full justify-center items-center">
-          <Link to="/onboarding" className="btn-primary px-5">
-            Register a Model
-          </Link>
-          <Link
-            to="/demo"
-            className="text-[14px] font-medium text-neuron-accent hover:text-neuron-accent-hover transition-all duration-150"
-          >
-            See how it works →
-          </Link>
-        </div>
+        <Link to="/onboarding" className="mt-8 btn-primary px-5">
+          Add Model →
+        </Link>
       </div>
     );
   }
 
   const modelsCount = models?.length ?? dash?.active_models ?? 0;
-  const analysesCount = recent.length;
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
         <MetricCard label="Models registered" value={modelsCount} />
-        <MetricCard
-          label="Analyses run"
-          value={analysesCount}
-          deltaLabel={
-            weekDelta != null ? `${weekDelta >= 0 ? "+" : ""}${weekDelta}% this week` : null
-          }
-          deltaPositive={weekDelta == null ? true : weekDelta >= 0}
-        />
         <MetricCard label="High risk flags" value={highRiskCount} />
-        <MetricCard
-          label="Avg BCI score"
-          value={recent.length ? avgBci.toFixed(1) : "—"}
-          deltaLabel={null}
-          deltaPositive
-        />
       </div>
 
       <section
@@ -246,7 +182,7 @@ export default function Dashboard() {
         <section className="flex-[3] min-w-0 bg-neuron-bg border border-neuron-border rounded-md shadow-sm overflow-hidden transition-all duration-150 hover:-translate-y-px hover:shadow-lg">
           <div className="px-5 py-4 border-b border-neuron-border flex items-center justify-between">
             <h2 className="font-display font-semibold text-[15px] text-neuron-primary">Recent analyses</h2>
-            <Link to="/models" className="text-[13px] font-medium text-neuron-accent hover:text-neuron-accent-hover">
+            <Link to="/" className="text-[13px] font-medium text-neuron-accent hover:text-neuron-accent-hover">
               Models →
             </Link>
           </div>
@@ -402,54 +338,9 @@ export default function Dashboard() {
                 <p className="text-[13px] text-neuron-secondary">No open alerts.</p>
               )}
             </div>
-            <div className="mt-4 pt-4 border-t border-neuron-border">
-              <div className="text-[10px] font-semibold tracking-[0.1em] text-neuron-mutedText uppercase mb-2">
-                Policy milestones
-              </div>
-              <ul className="space-y-2">
-                {(dash?.regulatory_milestones || []).map((m, i) => (
-                  <li key={i} className="flex justify-between gap-2 text-[12px] text-neuron-secondary border-b border-neuron-border/60 pb-2 last:border-0">
-                    <span>{m.name}</span>
-                    <span className="font-mono text-neuron-mutedText shrink-0">{m.due}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
           </section>
         </div>
       </div>
-
-      <section className="bg-neuron-bg border border-neuron-border rounded-md shadow-sm p-5 transition-all duration-150 hover:-translate-y-px hover:shadow-lg">
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <h2 className="font-display font-semibold text-[15px] text-neuron-primary">Quick run</h2>
-          <Link to="/onboarding" className="btn-primary text-[13px] min-h-[36px] py-2">
-            Add model
-          </Link>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {(models || []).map((m) => (
-            <div
-              key={m.id}
-              className="border border-neuron-border rounded-md p-4 bg-neuron-subtle/30 transition-all duration-150 hover:shadow-md hover:-translate-y-px"
-            >
-              <div className="font-medium text-neuron-primary">{m.name}</div>
-              <div className="text-[12px] font-mono text-neuron-mutedText mt-1">{m.huggingface_id || "custom"}</div>
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <span className={`font-mono text-sm font-semibold ${bciTextClass(m.overall_risk_score)}`}>
-                  BCI {m.overall_risk_score?.toFixed?.(0) ?? "—"}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => quickRun(m.id)}
-                  className="text-[13px] font-medium text-neuron-accent hover:text-neuron-accent-hover"
-                >
-                  Run analysis
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, NavLink, Outlet, useLocation, useNavigate, matchPath } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate, matchPath } from "react-router-dom";
 import { fetchMe } from "../services/api.js";
 
 function navItemClass(isActive) {
@@ -19,9 +19,11 @@ function demoNavClass(isActive) {
 }
 
 function pageTitle(pathname) {
-  if (matchPath({ path: "/", end: true }, pathname)) return "Dashboard";
+  if (matchPath({ path: "/", end: true }, pathname)) return "Models";
   if (matchPath("/models", pathname)) return "Models";
+  if (matchPath("/dashboard", pathname)) return "Dashboard";
   if (matchPath("/onboarding", pathname)) return "Add model";
+  if (matchPath("/docs", pathname)) return "Documentation";
   if (matchPath("/settings", pathname)) return "Settings";
   if (matchPath("/analysis/:id", pathname)) return "Analysis";
   if (matchPath("/reports/:analysisId", pathname)) return "Reports";
@@ -52,29 +54,16 @@ export default function Layout() {
           <div className="w-7 h-7 rounded-md bg-neuron-accent text-zinc-950 font-display font-bold text-sm flex items-center justify-center">
             N
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="font-display font-semibold text-[15px] text-neuron-primary">neuron</span>
-            <span className="text-[11px] text-neuron-mutedText">beta</span>
-          </div>
+          <span className="font-display font-semibold text-[15px] text-neuron-primary tracking-tight" style={{ fontWeight: 600 }}>
+            Neuron
+          </span>
         </div>
 
         <nav className="p-3 flex-1 overflow-y-auto">
-          <div className="text-[10px] font-semibold tracking-[0.1em] text-neuron-mutedText uppercase px-3 py-2">
-            Workspace
-          </div>
           <div className="space-y-0.5">
             <NavLink to="/" end className={({ isActive }) => navItemClass(isActive)}>
-              Dashboard
-            </NavLink>
-            <NavLink to="/models" className={({ isActive }) => navItemClass(isActive)}>
               Models
             </NavLink>
-            <NavLink to="/onboarding" className={({ isActive }) => navItemClass(isActive)}>
-              Analysis
-            </NavLink>
-            <Link to="/" className={navItemClass(pathname.startsWith("/reports"))}>
-              Reports
-            </Link>
             <NavLink to="/demo" className={({ isActive }) => demoNavClass(isActive)}>
               Live Demo
             </NavLink>
@@ -120,24 +109,8 @@ export default function Layout() {
       <div className="flex-1 ml-[240px] min-h-screen flex flex-col">
         <header className="h-14 shrink-0 bg-neuron-bg border-b border-neuron-border flex items-center justify-between px-6">
           <h1 className="font-display font-semibold text-[18px] text-neuron-primary">{title}</h1>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="p-2 rounded-sm text-neuron-secondary hover:bg-neuron-subtle transition-all duration-150"
-              aria-label="Notifications"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                />
-              </svg>
-            </button>
-            <div className="w-8 h-8 rounded-full bg-neuron-accent/20 text-neuron-accent font-mono text-xs font-semibold flex items-center justify-center ring-1 ring-neuron-border">
-              {initials}
-            </div>
+          <div className="w-8 h-8 rounded-full bg-neuron-accent/20 text-neuron-accent font-mono text-xs font-semibold flex items-center justify-center ring-1 ring-neuron-border">
+            {initials}
           </div>
         </header>
 

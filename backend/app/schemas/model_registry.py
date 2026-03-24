@@ -16,6 +16,7 @@ class ModelRegister(BaseModel):
 class ModelOut(BaseModel):
     id: str
     owner_user_id: Optional[str] = None
+    latest_analysis_id: Optional[str] = None
     name: str
     huggingface_id: Optional[str]
     checkpoint_path: Optional[str]

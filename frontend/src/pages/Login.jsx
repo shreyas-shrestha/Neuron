@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { login } from "../services/api.js";
 
 export default function Login() {
   const nav = useNavigate();
-  const [email, setEmail] = useState("demo@neuron.ai");
-  const [password, setPassword] = useState("demo");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [err, setErr] = useState("");
 
@@ -85,11 +85,16 @@ export default function Login() {
             Sign in
           </button>
 
-          <p className="text-center text-sm font-sans pt-1">
-            <Link to="/demo" className="text-neuron-accent font-medium hover:text-neuron-accent-hover transition-colors duration-150">
-              New here? See the live demo →
-            </Link>
-          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setEmail("demo@neuron.ai");
+              setPassword("demo");
+            }}
+            className="text-xs text-neuron-mutedText hover:text-neuron-secondary font-sans w-full text-center"
+          >
+            Use demo account
+          </button>
         </form>
       </div>
     </div>

@@ -28,24 +28,6 @@ const NARRATIVE = [
   },
 ];
 
-function trajectoryForStep(step, trajectories) {
-  if (step <= 2) return trajectories?.baseline;
-  if (step === 3) return trajectories?.normal_drift;
-  return trajectories?.problematic;
-}
-
-function checkpointsForStep(step, all) {
-  if (!all?.length) return [];
-  if (step <= 2) return all.slice(0, 1);
-  if (step === 3) return all.slice(0, 2);
-  return all;
-}
-
-function flagsForStep(step, flags) {
-  if (step >= 4) return flags || [];
-  return [];
-}
-
 function DemoNav() {
   return (
     <header className="h-14 border-b border-neuron-border bg-neuron-bg flex items-center justify-between px-4 lg:px-8 relative">
@@ -53,7 +35,7 @@ function DemoNav() {
         <div className="w-7 h-7 rounded-md bg-neuron-accent text-zinc-950 font-display font-bold text-sm flex items-center justify-center">
           N
         </div>
-        <span className="font-display font-semibold text-[15px] text-neuron-primary">neuron</span>
+        <span className="font-display font-semibold text-[15px] text-neuron-primary">Neuron</span>
       </Link>
       <div className="hidden sm:flex absolute left-1/2 -translate-x-1/2">
         <span className="text-[13px] font-medium font-sans px-3 py-1 rounded-full border border-neuron-accent/45 text-neuron-secondary bg-neuron-accent/5">
@@ -61,10 +43,7 @@ function DemoNav() {
         </span>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <Link
-          to="/login"
-          className="text-[13px] font-medium text-neuron-secondary hover:text-neuron-primary px-3 py-2 rounded-sm transition-colors duration-150"
-        >
+        <Link to="/login" className="text-[13px] font-medium text-neuron-secondary hover:text-neuron-primary px-3 py-2 rounded-sm transition-colors duration-150">
           Sign In
         </Link>
         <Link to="/onboarding" className="btn-primary text-[13px] min-h-[36px] py-2 px-4">
@@ -79,7 +58,7 @@ export default function Demo() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [payload, setPayload] = useState(null);
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(3);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,23 +85,19 @@ export default function Demo() {
   }, [load]);
 
   useEffect(() => {
-    if (payload) setStep(1);
-  }, [payload]);
-
-  useEffect(() => {
     if (loading || error) return undefined;
     const t = setInterval(() => {
       setStep((s) => (s >= 5 ? 5 : s + 1));
-    }, 4000);
+    }, 6000);
     return () => clearInterval(t);
   }, [loading, error]);
 
   const trajectories = payload?.trajectories;
   const checkpoints = payload?.checkpoints || [];
-  const traj = trajectoryForStep(step, trajectories);
+  const traj = trajectories?.problematic;
   const curve = traj?.per_layer_curve;
   const novel = traj?.novel_features_by_layer;
-  const flags = flagsForStep(step, payload?.risk_flags_high);
+  const flags = payload?.risk_flags_high || [];
 
   return (
     <div className="min-h-screen bg-neuron-subtle text-neuron-primary">
@@ -130,7 +105,7 @@ export default function Demo() {
 
       <div className="max-w-[1200px] mx-auto px-6 lg:px-10 py-10 flex flex-col lg:flex-row gap-10 lg:gap-12">
         <div className="lg:w-[40%] shrink-0 lg:sticky lg:top-20 lg:self-start space-y-8">
-          <div className="flex gap-2 mb-2">
+          <div className="flex gap-2 mb-2 flex-wrap items-center">
             {NARRATIVE.map((_, i) => {
               const n = i + 1;
               const active = n === step;
@@ -153,6 +128,25 @@ export default function Demo() {
                 </button>
               );
             })}
+          </div>
+
+          <div className="flex justify-center gap-4">
+            <button
+              type="button"
+              disabled={step <= 1}
+              onClick={() => setStep((s) => Math.max(1, s - 1))}
+              className="text-[13px] font-medium text-neuron-secondary hover:text-neuron-primary disabled:opacity-30"
+            >
+              ← Prev
+            </button>
+            <button
+              type="button"
+              disabled={step >= 5}
+              onClick={() => setStep((s) => Math.min(5, s + 1))}
+              className="text-[13px] font-medium text-neuron-secondary hover:text-neuron-primary disabled:opacity-30"
+            >
+              Next →
+            </button>
           </div>
 
           {NARRATIVE.map((block, i) => {
@@ -194,7 +188,7 @@ export default function Demo() {
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
               </div>
               <div className="flex-1 mx-2 h-6 bg-neuron-bg border border-neuron-border rounded text-[11px] font-mono text-neuron-mutedText flex items-center px-2 truncate">
-                app.neuron.ai/analysis/ring-detector
+                neuron.ai/demo
               </div>
             </div>
 
@@ -222,7 +216,7 @@ export default function Demo() {
                 <div className="space-y-5">
                   <section className="bg-neuron-bg rounded-md border border-neuron-border p-4 shadow-sm">
                     <h3 className="font-display font-semibold text-[14px] text-neuron-primary mb-3">Retraining timeline</h3>
-                    <RetrainingTimeline checkpoints={checkpointsForStep(step, checkpoints)} demoMode />
+                    <RetrainingTimeline checkpoints={checkpoints} demoMode />
                   </section>
                   <section className="bg-neuron-bg rounded-md border border-neuron-border p-4 shadow-sm">
                     <h3 className="font-display font-semibold text-[14px] text-neuron-primary mb-3">Layer trajectory</h3>
@@ -254,7 +248,9 @@ export default function Demo() {
           <Link to="/onboarding" className="btn-primary h-10 px-6">
             Get Started Free →
           </Link>
-          <span className="text-[14px] text-neuron-mutedText font-sans cursor-default">Read the docs</span>
+          <Link to="/docs" className="text-[14px] text-neuron-mutedText font-sans hover:text-neuron-secondary">
+            Read the docs
+          </Link>
         </div>
       </div>
     </div>

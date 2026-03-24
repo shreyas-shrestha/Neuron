@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import {
   CartesianGrid,
   Line,
@@ -95,7 +96,7 @@ export default function RetrainingTimeline({ checkpoints = [], demoMode = false 
               content={({ active, payload }) => {
                 if (!active || !payload?.[0]) return null;
                 const p = payload[0].payload;
-                const flags = p.flags?.length ? JSON.stringify(p.flags).slice(0, 120) : "—";
+                const nFlags = Array.isArray(p.flags) ? p.flags.length : 0;
                 return (
                   <div style={{ ...TOOLTIP_STYLE, padding: "8px 10px" }}>
                     <div style={{ color: "#fafafa" }}>
@@ -105,7 +106,9 @@ export default function RetrainingTimeline({ checkpoints = [], demoMode = false 
                       BCI {Number(p.bci).toFixed(1)}
                     </div>
                     <div style={{ color: "#a1a1aa" }}>Risk {p.risk_level}</div>
-                    <div style={{ color: "#71717a", fontSize: 11, marginTop: 4 }}>Flags {flags}</div>
+                    <div style={{ color: "#71717a", fontSize: 11, marginTop: 4 }}>
+                      {nFlags ? `${nFlags} behavior flag(s)` : "No flags"}
+                    </div>
                   </div>
                 );
               }}
@@ -165,13 +168,28 @@ export default function RetrainingTimeline({ checkpoints = [], demoMode = false 
       )}
 
       {!data.length && (
-        <p className="text-sm text-neuron-secondary font-sans">
-          No SDK checkpoints yet. Call{" "}
-          <code className="font-mono text-[12px] text-neuron-secondary bg-neuron-muted px-1 rounded border border-neuron-border">
-            neuron.checkpoint()
-          </code>{" "}
-          from your training loop to populate this timeline.
-        </p>
+        <div className="flex flex-col items-center text-center py-8 px-4 max-w-[320px] mx-auto">
+          <svg
+            className="w-10 h-10 text-neuron-accent shrink-0"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            aria-hidden
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18M7 16l4-4 4 4 6-6" />
+          </svg>
+          <h3 className="font-display font-semibold text-[18px] text-neuron-primary mt-4" style={{ fontWeight: 600 }}>
+            No retraining history
+          </h3>
+          <p className="text-[14px] text-neuron-secondary mt-2 leading-relaxed font-sans">
+            Add <code className="font-mono text-[12px]">neuron.checkpoint()</code> to your training loop to track
+            behavioral drift over time.
+          </p>
+          <Link to="/settings" className="mt-5 btn-primary text-[13px] min-h-[40px] px-4">
+            Get API key in Settings
+          </Link>
+        </div>
       )}
     </div>
   );

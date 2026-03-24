@@ -14,12 +14,6 @@ from app.schemas.dashboard import DashboardSummary
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
-MILESTONES = [
-    {"name": "EU AI Act — GPAI obligations", "due": "2025-08-02", "status": "monitoring"},
-    {"name": "High-risk system conformity", "due": "2026-08-02", "status": "planned"},
-    {"name": "Internal logging review", "due": "2025-12-15", "status": "internal"},
-]
-
 
 def _sae_training_status() -> dict:
     base = settings.sae_checkpoints_dir
@@ -34,19 +28,21 @@ def _sae_training_status() -> dict:
 @router.get("/summary", response_model=DashboardSummary)
 def dashboard_summary(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     n_models = (
         db.query(ModelRegistry)
+        .filter(ModelRegistry.owner_user_id == str(current_user.id))
         .filter(
             or_(ModelRegistry.huggingface_id.is_(None), ModelRegistry.huggingface_id != "ring-demo"),
         )
         .count()
     )
+    owned = select(ModelRegistry.id).where(ModelRegistry.owner_user_id == str(current_user.id))
     recent = (
         db.execute(
             select(Analysis)
-            .where(Analysis.analysis_type != "demo")
+            .where(Analysis.analysis_type != "demo", Analysis.model_id.in_(owned))
             .order_by(Analysis.created_at.desc())
             .limit(12)
         )
@@ -89,6 +85,6 @@ def dashboard_summary(
         risk_distribution=dict(dist),
         trend_data=trend,
         top_risk_flags=top_flags[:8],
-        regulatory_milestones=MILESTONES,
+        regulatory_milestones=[],
         sae_status=_sae_training_status(),
     )

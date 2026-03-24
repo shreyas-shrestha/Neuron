@@ -3,7 +3,9 @@ from __future__ import annotations
 import traceback
 from datetime import datetime, timezone
 
+from app.core.config import settings
 from app.interpretability.compliance_detector import ComplianceDetector
+from app.interpretability.explainer import explain_flags_batch
 from app.interpretability.lending_probes import LOAN_TEMPLATE, NAME_GROUPS, UCI_STYLE_SAMPLES
 from app.models.analysis import Analysis
 from app.models.model_registry import ModelRegistry
@@ -75,6 +77,17 @@ def run_analysis_job(analysis_id: str, db_url: str) -> None:
             evidence_texts=texts[:4],
         )
         risk_score = detector.overall_risk_score(flags)
+        if settings.anthropic_api_key:
+            flags_dicts = [f.to_dict() for f in flags]
+            enriched = [{**f, "total_layers": traj.layer_count} for f in flags_dicts]
+            flags_dicts = explain_flags_batch(
+                enriched,
+                bci=risk_score,
+                domain=model.domain or "general",
+                api_key=settings.anthropic_api_key,
+            )
+        else:
+            flags_dicts = [f.to_dict() for f in flags]
         analysis.progress = 0.95
         db.commit()
 
@@ -98,7 +111,7 @@ def run_analysis_job(analysis_id: str, db_url: str) -> None:
             }
 
         analysis.trajectory_data = payload
-        analysis.risk_flags = [f.to_dict() for f in flags]
+        analysis.risk_flags = flags_dicts
         analysis.overall_risk_score = risk_score
         analysis.status = "complete"
         analysis.progress = 1.0

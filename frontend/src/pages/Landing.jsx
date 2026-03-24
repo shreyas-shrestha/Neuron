@@ -15,8 +15,14 @@ export default function Landing() {
         aria-hidden
       />
 
+      <div className="relative flex justify-end px-6 pt-6">
+        <Link to="/login" className="text-[13px] text-neuron-mutedText hover:text-neuron-secondary font-sans transition-colors">
+          Sign In
+        </Link>
+      </div>
+
       <div className="relative flex-1 flex flex-col items-center px-6 pb-24">
-        <div className="w-full max-w-[640px] text-center pt-[120px]">
+        <div className="w-full max-w-[640px] text-center pt-[80px]">
           <div className="inline-flex items-center gap-2 rounded-full border border-neuron-border bg-neuron-muted/60 px-4 py-2 shadow-sm">
             <span className="w-2 h-2 rounded-full bg-neuron-success animate-pulse-dot shrink-0" aria-hidden />
             <span className="text-[13px] text-neuron-secondary font-sans">Now in beta · Built at Georgia Tech</span>
@@ -31,23 +37,15 @@ export default function Landing() {
             representations. Catch harmful feature emergence before it ships.
           </p>
 
-          <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center items-center">
-            <Link to="/demo" className="btn-primary h-10 px-5">
+          <div className="mt-8 flex justify-center">
+            <Link to="/demo" className="btn-primary h-11 px-8 text-[15px]">
               See Live Demo →
-            </Link>
-            <Link to="/login" className="btn-secondary h-10 px-5">
-              Sign In
             </Link>
           </div>
 
-          <div className="mt-12 text-center">
-            <p className="text-[13px] text-neuron-mutedText tracking-wide font-sans">Trusted by ML engineers at</p>
-            <div className="mt-4 flex flex-wrap justify-center gap-8 text-[13px] text-neuron-mutedText tracking-wider font-medium">
-              <span>Anthropic</span>
-              <span>Scale AI</span>
-              <span>Cohere</span>
-            </div>
-          </div>
+          <p className="mt-10 text-[13px] text-neuron-mutedText font-sans">
+            Built at Georgia Tech · Open source · No credit card required
+          </p>
         </div>
 
         <div className="w-full max-w-[1100px] mt-20 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -57,9 +55,9 @@ export default function Landing() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
               </svg>
             </div>
-            <h2 className="font-display font-semibold text-lg text-neuron-primary">Retrain with confidence</h2>
+            <h2 className="font-display font-semibold text-lg text-neuron-primary">See what changed</h2>
             <p className="mt-2 text-[15px] text-neuron-secondary leading-relaxed font-sans">
-              See exactly what changed between model versions at the layer level — before you deploy.
+              Compare any two checkpoints layer by layer. Know exactly what shifted before you ship.
             </p>
           </article>
 
@@ -69,9 +67,10 @@ export default function Landing() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
               </svg>
             </div>
-            <h2 className="font-display font-semibold text-lg text-neuron-primary">Catch the Ring problem</h2>
+            <h2 className="font-display font-semibold text-lg text-neuron-primary">Catch it before Reddit does</h2>
             <p className="mt-2 text-[15px] text-neuron-secondary leading-relaxed font-sans">
-              Detect harmful feature emergence during retraining. Not after it goes viral.
+              Ring&apos;s camera classified dark-skinned people as animals. Their eval suite missed it. Neuron wouldn&apos;t
+              have.
             </p>
           </article>
 
@@ -81,7 +80,7 @@ export default function Landing() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
               </svg>
             </div>
-            <h2 className="font-display font-semibold text-lg text-neuron-primary">Ship in minutes</h2>
+            <h2 className="font-display font-semibold text-lg text-neuron-primary">2 lines of code</h2>
             <p className="mt-2 text-[15px] text-neuron-secondary leading-relaxed font-sans">
               Add two lines to your training loop. That&apos;s the entire integration.
             </p>
@@ -95,7 +94,7 @@ neuron.checkpoint(model, epoch=epoch)`}
 
       <footer className="relative border-t border-neuron-border py-8 px-6">
         <div className="max-w-[1100px] mx-auto flex flex-col sm:flex-row justify-between gap-4 text-[13px] text-neuron-mutedText font-sans">
-          <span>© 2025 Neuron · Built at Georgia Tech</span>
+          <span>© 2026 Neuron · Built at Georgia Tech</span>
           <div className="flex gap-6">
             <span className="cursor-default">GitHub</span>
             <span className="cursor-default">Docs</span>

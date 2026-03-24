@@ -14,6 +14,7 @@ export default function Reports() {
   const [framework, setFramework] = useState("eu_ai_act");
   const [organization, setOrganization] = useState("Neuron Demo Org");
   const [reportId, setReportId] = useState(null);
+  const [reportData, setReportData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -28,6 +29,7 @@ export default function Reports() {
         organization,
       });
       setReportId(rep.id);
+      setReportData(rep.report_data ?? null);
     } catch (ex) {
       setErr(ex?.response?.data?.detail || "Could not generate");
     } finally {
@@ -47,6 +49,7 @@ export default function Reports() {
   }
 
   const fwLabel = FRAMEWORKS.find((f) => f.id === framework)?.label || framework;
+  const findings = Array.isArray(reportData?.findings) ? reportData.findings : [];
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -113,17 +116,6 @@ export default function Reports() {
                 Org: <span className="font-mono text-neuron-secondary">{organization}</span>
               </span>
             </div>
-            <div className="flex flex-wrap gap-2 mt-4">
-              <span className="text-[11px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-neuron-low border border-emerald-100">
-                LOW 0
-              </span>
-              <span className="text-[11px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-neuron-moderate border border-amber-100">
-                MOD 0
-              </span>
-              <span className="text-[11px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-50 text-neuron-high border border-red-100">
-                HIGH 0
-              </span>
-            </div>
           </div>
           {reportId && (
             <button type="button" onClick={downloadPdf} className="btn-primary text-[13px] min-h-[40px]">
@@ -134,24 +126,45 @@ export default function Reports() {
 
         <div className="text-[13px] text-neuron-secondary font-sans space-y-3">
           <p className="font-medium text-neuron-primary">Findings (preview)</p>
-          <div className="border border-neuron-border rounded-md overflow-hidden">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-neuron-subtle text-neuron-mutedText text-[12px] font-medium border-b border-neuron-border">
-                  <th className="py-2 px-3">Category</th>
-                  <th className="py-2 px-3">Severity</th>
-                  <th className="py-2 px-3">Summary</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-neuron-border bg-neuron-subtle/40">
-                  <td className="py-2 px-3 font-mono text-[12px]">—</td>
-                  <td className="py-2 px-3 font-mono text-[12px]">—</td>
-                  <td className="py-2 px-3">Generate a report to populate findings.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          {!reportId ? (
+            <div className="text-center py-12 text-neuron-secondary font-sans">
+              <p className="text-[15px]">Generate a report to see findings preview</p>
+              <p className="text-[13px] mt-1 text-neuron-mutedText">
+                The exported PDF includes executive summary, behavioral matrix, and attestation block.
+              </p>
+            </div>
+          ) : (
+            <div className="border border-neuron-border rounded-md overflow-hidden">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-neuron-subtle text-neuron-mutedText text-[12px] font-medium border-b border-neuron-border">
+                    <th className="py-2 px-3">Category</th>
+                    <th className="py-2 px-3">Severity</th>
+                    <th className="py-2 px-3">Summary</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {findings.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="py-6 px-3 text-center text-neuron-mutedText text-[13px]">
+                        No findings in this report.
+                      </td>
+                    </tr>
+                  ) : (
+                    findings.map((f, idx) => (
+                      <tr key={idx} className="border-b border-neuron-border bg-neuron-subtle/40">
+                        <td className="py-2 px-3 font-mono text-[12px] text-neuron-primary">
+                          {f.risk_category || "—"}
+                        </td>
+                        <td className="py-2 px-3 font-mono text-[12px]">{f.risk_level || "—"}</td>
+                        <td className="py-2 px-3 text-neuron-secondary">{(f.description || "").slice(0, 200)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {reportId && (
