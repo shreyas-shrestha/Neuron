@@ -14,7 +14,10 @@ class CheckpointPayload(BaseModel):
     state_summary: dict[str, Any] = Field(default_factory=dict)
     behavior_change_index: Optional[float] = Field(
         default=None,
-        description="Optional client-computed BCI (e.g. activation cosine drift vs baseline).",
+        description=(
+            "Client-computed Behavior Change Index (0–100). When set, the server uses this value as-is for "
+            "risk scoring and storage; it does not derive BCI from state_summary."
+        ),
     )
 
 

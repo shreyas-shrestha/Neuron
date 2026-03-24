@@ -67,7 +67,10 @@ def sdk_checkpoint(
     db: Session = Depends(get_db),
     _: User = Depends(get_user_from_api_key),
 ):
+    """Persist SDK checkpoints. BCI is taken only from the client payload — never derived from state_summary."""
     registry = _get_or_create_model(db, body.model_id)
+    # Authoritative BCI: optional float from SDK (activation-based when probe path is used).
+    # Omitted / null → 0.0. state_summary is stored for fingerprinting only, not for BCI math.
     if body.behavior_change_index is not None:
         bci = float(body.behavior_change_index)
     else:
