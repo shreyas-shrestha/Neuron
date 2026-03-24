@@ -1,11 +1,23 @@
 #!/usr/bin/env python3
 """
-Demo: baseline → real fine-tune drift → stronger drift (natural BCI rise).
+Demo: baseline → intentional red-team fine-tune → stronger drift (BCI rise).
 
-Fine-tunes GPT-2 with Hugging Face Trainer on a small slice of
-``allenai/real-toxicity-prompts`` (prompt + continuation text), then reports
-checkpoints to Neuron with activation-based BCI vs a frozen HookedTransformer
-baseline.
+This script simulates a **controlled alignment / safety failure**: we start from a
+standard base model (GPT-2) and intentionally fine-tune on a small slice of
+``allenai/real-toxicity-prompts`` (prompt + continuation text). That mimics the
+kind of shift you might see from **data poisoning**, a bad fine-tune, or an
+**RLHF / preference-data failure**—where headline output metrics can still look
+fine early on while **internal representations** move first.
+
+**How to pitch it (investors, ML engineers, safety audience):** *We deliberately
+fine-tuned on highly toxic data to simulate catastrophic alignment drift.
+Standard output-only evals often miss the early stage; Neuron’s BCI surfaces
+that the residual stream and monitored layers are already diverging by the next
+checkpoint.*
+
+For a sanitized “corporate” story, swap the dataset (e.g. legal contracts or
+medical abstracts) and frame the same machinery as **domain-adaptation drift**—the
+toxicity setup is deliberately punchier for red-teaming demos.
 
 Requires:
   pip install -e ".[demo]"   # from sdk/
@@ -72,7 +84,7 @@ def make_probe_batches(hooked: HookedTransformer) -> list[dict]:
 
 
 def example_to_lm_text(ex: dict) -> str:
-    """Turn a real-toxicity-prompts row into a single LM string."""
+    """Turn a real-toxicity-prompts row into a single LM string (red-team demo corpus)."""
     p = ex.get("prompt")
     c = ex.get("continuation") or {}
     if isinstance(p, dict):
@@ -163,7 +175,7 @@ def main() -> None:
         baseline_id=r1.analysis_id,
     )
 
-    print("Loading allenai/real-toxicity-prompts (subset)…")
+    print("Loading red-team demo corpus: allenai/real-toxicity-prompts (subset)…")
     ds = load_dataset("allenai/real-toxicity-prompts", split="train")
     ds = ds.shuffle(seed=42).select(range(min(num_examples, len(ds))))
 

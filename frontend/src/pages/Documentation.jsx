@@ -154,13 +154,25 @@ for epoch in range(num_epochs):
       </section>
 
       <section className="space-y-4">
-        <h2 className="font-display font-semibold text-[16px] text-neuron-primary">7. Local demo script</h2>
+        <h2 className="font-display font-semibold text-[16px] text-neuron-primary">7. Local demo script (red-team simulation)</h2>
         <p className="text-[14px] text-neuron-secondary font-sans leading-relaxed">
           The repo includes <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">sdk/demo_retraining_narrative.py</code>{" "}
-          (install <code className="font-mono text-[12px]">[demo]</code>). It fine-tunes <code className="font-mono text-[12px]">gpt2</code> for a few steps on a small slice of{" "}
-          <code className="font-mono text-[12px]">allenai/real-toxicity-prompts</code>, then posts checkpoints with activation-based BCI. Downloads model weights and the dataset on first run. Set{" "}
-          <code className="font-mono text-[12px]">NEURON_API_KEY</code> in <code className="font-mono text-[12px]">backend/.env</code>{" "}
-          or your environment and run it against a running API.
+          (install <code className="font-mono text-[12px]">[demo]</code>). It starts from standard{" "}
+          <code className="font-mono text-[12px]">gpt2</code> and intentionally fine-tunes on a small slice of{" "}
+          <code className="font-mono text-[12px]">allenai/real-toxicity-prompts</code> to simulate{" "}
+          <strong className="text-neuron-primary font-medium">catastrophic alignment drift</strong>
+          —the kind of shift you might see from data poisoning, a bad fine-tune, or an RLHF / preference-data failure. Then it posts checkpoints with activation-based BCI vs a frozen baseline. Downloads model weights and the dataset on first run.
+        </p>
+        <p className="text-[14px] text-neuron-secondary font-sans leading-relaxed">
+          <strong className="text-neuron-primary font-medium">Pitch for investors or ML safety engineers:</strong> standard output-only evals often miss the early stage of this failure mode; Neuron&apos;s BCI is designed to show that{" "}
+          <strong className="text-neuron-primary font-medium">internal representations</strong> are already moving by the next checkpoint—even when headline metrics still look tame.
+        </p>
+        <p className="text-[13px] text-neuron-mutedText font-sans leading-relaxed">
+          Need a fully sanitized narrative? Swap the dataset (e.g. legal contracts or medical abstracts) and describe the same run as domain-adaptation drift—the mechanics and BCI story stay the same.
+        </p>
+        <p className="text-[14px] text-neuron-secondary font-sans leading-relaxed">
+          Set <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">NEURON_API_KEY</code> in <code className="font-mono text-[12px]">backend/.env</code>{" "}
+          or your environment and run against a live API.
         </p>
       </section>
 
