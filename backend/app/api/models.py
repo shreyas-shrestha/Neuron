@@ -23,7 +23,17 @@ def register_model(
     hf = body.huggingface_id or "gpt2"
     try:
         from transformers import AutoConfig
+    except ModuleNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "The Hugging Face `transformers` package is not installed in this API environment. "
+                "From the `backend` folder run: pip install -e .   "
+                "(or: pip install 'transformers>=4.44.0')"
+            ),
+        ) from exc
 
+    try:
         config = AutoConfig.from_pretrained(hf)
         n_layers = int(getattr(config, "num_hidden_layers", getattr(config, "n_layer", 12)))
         hidden = int(getattr(config, "hidden_size", getattr(config, "n_embd", 768)))
