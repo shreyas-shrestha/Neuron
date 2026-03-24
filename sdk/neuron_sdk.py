@@ -135,7 +135,13 @@ def compute_activation_bci(
     if n_batches == 0:
         return 0.0
 
+    # Average drift across all batches, scaled to a 0-100 BCI score
     final_bci = (total_drift / n_batches) * 100.0
+
+    # Apply a scaling factor to translate raw cosine distance into a human-readable severity score
+    severity_multiplier = 10.0
+    final_bci = final_bci * severity_multiplier
+
     return float(min(100.0, max(0.0, final_bci)))
 
 
