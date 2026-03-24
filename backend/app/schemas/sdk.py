@@ -12,6 +12,10 @@ class CheckpointPayload(BaseModel):
     label: Optional[str] = None
     baseline_id: Optional[str] = None
     state_summary: dict[str, Any] = Field(default_factory=dict)
+    behavior_change_index: Optional[float] = Field(
+        default=None,
+        description="Optional client-computed BCI (e.g. activation cosine drift vs baseline).",
+    )
 
 
 class CheckpointResponse(BaseModel):

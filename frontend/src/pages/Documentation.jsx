@@ -69,10 +69,14 @@ export default function Documentation() {
           (sibling to <code className="text-[12px] font-mono bg-neuron-muted px-1.5 py-0.5 rounded">backend</code>):
         </p>
         <CodeBlock title="Shell">{`cd sdk
-pip install -e .`}</CodeBlock>
+pip install -e .
+# For activation-based BCI (TransformerLens + probe dataloader):
+pip install -e ".[activations]"`}</CodeBlock>
         <p className="text-[13px] text-neuron-mutedText font-sans leading-relaxed">
           This installs the <code className="font-mono text-[12px]">neuron-sdk</code> package so you can{" "}
-          <code className="font-mono text-[12px]">import neuron</code> in your training code.
+          <code className="font-mono text-[12px]">import neuron</code> in your training code. The{" "}
+          <code className="font-mono text-[12px]">[activations]</code> extra adds{" "}
+          <code className="font-mono text-[12px]">transformer-lens</code> for real BCI from residual-stream cosine drift.
         </p>
       </section>
 
@@ -90,28 +94,41 @@ pip install -e .`}</CodeBlock>
         <p className="text-[14px] text-neuron-secondary font-sans leading-relaxed">
           Call <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">init</code> once with your API key and
           the model id that matches a row in Neuron (UUID or registry name). After each epoch (or on a schedule), call{" "}
-          <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">checkpoint</code> with your{" "}
-          <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">nn.Module</code>.
+          <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">checkpoint</code>.
         </p>
-        <CodeBlock title="train.py">{`import torch.nn as nn
+        <p className="text-[14px] text-neuron-secondary font-sans leading-relaxed">
+          For a real <strong className="text-neuron-primary font-medium">Behavior Change Index</strong>, pass a fixed{" "}
+          <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">probe_dataloader</code> (batches with{" "}
+          <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">input_ids</code>) and a{" "}
+          <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">transformer_lens.HookedTransformer</code>{" "}
+          model. Freeze a baseline with <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">neuron.snapshot_hooked_baseline(model)</code> after your first checkpoint, then pass it as{" "}
+          <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">hooked_baseline</code> on later epochs. The first call can use{" "}
+          <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">hooked_baseline=None</code> (BCI 0).
+        </p>
+        <CodeBlock title="train.py (HookedTransformer + probe)">{`from transformer_lens import HookedTransformer
 import neuron
 
-neuron.init(
-    api_key="nrn_your_key_here",
-    model_id="your-model-id-or-uuid",  # must match Neuron registry
-)
+neuron.init(api_key="nrn_your_key_here", model_id="your-model-id-or-uuid")
 
-class MyModel(nn.Module):
-    ...
+hooked = HookedTransformer.from_pretrained("gpt2", device="cuda")
+probe_dataloader = your_fixed_probe_batches(hooked)  # list/DataLoader; each batch has tensor input_ids
 
-model = MyModel()
-
+baseline_hooked = None
 for epoch in range(num_epochs):
-    train_one_epoch(model, data)
-    neuron.checkpoint(model, epoch=epoch)`}</CodeBlock>
+    train_one_epoch(hooked, data)
+    neuron.checkpoint(
+        hooked,
+        epoch=epoch,
+        probe_dataloader=probe_dataloader,
+        hooked_baseline=baseline_hooked,
+    )
+    if epoch == 0:
+        baseline_hooked = neuron.snapshot_hooked_baseline(hooked)`}</CodeBlock>
         <p className="text-[13px] text-neuron-mutedText font-sans leading-relaxed">
-          Optional: pass <code className="font-mono text-[12px]">baseline_id</code>, <code className="font-mono text-[12px]">fail_on</code>
-          , or <code className="font-mono text-[12px]">block_on_high_risk=True</code> to fail CI when risk exceeds a threshold (see{" "}
+          Optional: <code className="font-mono text-[12px]">baseline_id</code>, <code className="font-mono text-[12px]">fail_on</code>
+          , <code className="font-mono text-[12px]">layers_to_monitor</code> in <code className="font-mono text-[12px]">init</code>{" "}
+          or per <code className="font-mono text-[12px]">checkpoint</code>, or{" "}
+          <code className="font-mono text-[12px]">block_on_high_risk=True</code> to fail CI when risk exceeds a threshold (see{" "}
           <code className="font-mono text-[12px]">sdk/neuron_sdk.py</code>
           ).
         </p>
@@ -121,9 +138,11 @@ for epoch in range(num_epochs):
         <h2 className="font-display font-semibold text-[16px] text-neuron-primary">6. What happens on each checkpoint</h2>
         <p className="text-[14px] text-neuron-secondary font-sans leading-relaxed">
           The SDK POSTs a lightweight state summary to{" "}
-          <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">/api/v1/sdk/checkpoint</code>. The API
-          computes behavior-change signals and returns BCI, risk level, and links when available. Check the terminal for lines
-          like{" "}
+          <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">/api/v1/sdk/checkpoint</code>. When you pass{" "}
+          <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">probe_dataloader</code>, it also sends a{" "}
+          client-computed <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">behavior_change_index</code>{" "}
+          from mean residual-stream cosine drift vs your frozen baseline. The API applies risk thresholds and stores the checkpoint.
+          Check the terminal for lines like{" "}
           <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">[neuron] Epoch N | BCI: … | Risk: …</code>
           .
         </p>
@@ -133,7 +152,8 @@ for epoch in range(num_epochs):
         <h2 className="font-display font-semibold text-[16px] text-neuron-primary">7. Local demo script</h2>
         <p className="text-[14px] text-neuron-secondary font-sans leading-relaxed">
           The repo includes <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">sdk/demo_retraining_narrative.py</code>{" "}
-          — set <code className="font-mono text-[12px]">NEURON_API_KEY</code> in <code className="font-mono text-[12px]">backend/.env</code>{" "}
+          (install <code className="font-mono text-[12px]">[activations]</code>, downloads <code className="font-mono text-[12px]">gpt2</code> on first run). Set{" "}
+          <code className="font-mono text-[12px]">NEURON_API_KEY</code> in <code className="font-mono text-[12px]">backend/.env</code>{" "}
           or your environment and run it against a running API.
         </p>
       </section>

@@ -25,26 +25,6 @@ from app.schemas.sdk import (
 router = APIRouter()
 
 
-def _compute_bci(current_summary: dict[str, Any], baseline_summary: dict[str, Any] | None) -> float:
-    if not baseline_summary:
-        return 0.0
-    cur = current_summary.get("layer_stats") or {}
-    base = baseline_summary.get("layer_stats") or {}
-    deltas: list[float] = []
-    for name, cstat in cur.items():
-        if name not in base:
-            continue
-        try:
-            cn = float(cstat.get("norm", 0))
-            bn = float(base[name].get("norm", 0))
-        except (TypeError, ValueError):
-            continue
-        deltas.append(abs(cn - bn) / (abs(bn) + 1e-8))
-    if not deltas:
-        return 0.0
-    return min(100.0, (sum(deltas) / len(deltas)) * 100.0)
-
-
 def _bci_to_risk(bci: float) -> str:
     if bci < 10:
         return "LOW"
@@ -53,15 +33,6 @@ def _bci_to_risk(bci: float) -> str:
     if bci < 50:
         return "HIGH"
     return "CRITICAL"
-
-
-def _summary_from_analysis_row(traj: dict[str, Any] | None) -> dict[str, Any]:
-    if not traj:
-        return {}
-    sdk = traj.get("sdk")
-    if isinstance(sdk, dict) and sdk.get("state_summary"):
-        return sdk["state_summary"]
-    return {}
 
 
 def _get_or_create_model(db: Session, client_model_id: str) -> ModelRegistry:
@@ -97,13 +68,10 @@ def sdk_checkpoint(
     _: User = Depends(get_user_from_api_key),
 ):
     registry = _get_or_create_model(db, body.model_id)
-    baseline_summary: dict[str, Any] | None = None
-    if body.baseline_id:
-        base_row = db.get(Analysis, body.baseline_id)
-        if base_row and base_row.trajectory_data:
-            baseline_summary = _summary_from_analysis_row(dict(base_row.trajectory_data))
-
-    bci = _compute_bci(body.state_summary, baseline_summary)
+    if body.behavior_change_index is not None:
+        bci = float(body.behavior_change_index)
+    else:
+        bci = 0.0
     risk_level = _bci_to_risk(bci)
 
     flags: list[dict[str, Any]] = []
@@ -120,7 +88,7 @@ def sdk_checkpoint(
                 ),
                 "evidence_texts": [],
                 "recommended_actions": [
-                    "Inspect layer norm deltas in Neuron",
+                    "Inspect activation drift vs baseline in Neuron",
                     "Compare against earlier checkpoint",
                 ],
             }
