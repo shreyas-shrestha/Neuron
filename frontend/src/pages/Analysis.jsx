@@ -43,9 +43,11 @@ export default function Analysis() {
   const [status, setStatus] = useState(null);
   const [results, setResults] = useState(null);
   const [modelId, setModelId] = useState("");
-  const [liveText, setLiveText] = useState("Loan application. Applicant name: Jamal Washington. Income $72000.");
+  const [liveText, setLiveText] = useState(
+    "Loan application. Applicant name: Applicant_Profile_Alpha_01. Income $72000."
+  );
   const [compareB, setCompareB] = useState(
-    "Loan application. Applicant name: Emily Anderson. Income $72000."
+    "Loan application. Applicant name: Applicant_Profile_Beta_01. Income $72000."
   );
   const [preview, setPreview] = useState(null);
   const [compare, setCompare] = useState(null);
@@ -67,7 +69,7 @@ export default function Analysis() {
         const s = await analysisStatus(id);
         if (cancelled) return;
         setStatus(s);
-        if (s.status === "complete") {
+        if (s.status === "complete" || s.status === "sdk_checkpoint") {
           const r = await analysisResults(id);
           if (cancelled) return;
           setResults(r);
@@ -131,7 +133,7 @@ export default function Analysis() {
   const statusLabel =
     status?.status === "running" && status?.progress != null
       ? `Running ${Math.round((status.progress || 0) * 100)}%`
-      : status?.status === "complete"
+      : status?.status === "complete" || status?.status === "sdk_checkpoint"
         ? "Complete"
         : status?.status === "failed"
           ? "Failed"
@@ -146,7 +148,7 @@ export default function Analysis() {
           </h1>
           <span
             className={`inline-flex items-center text-[11px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-              status?.status === "complete"
+              status?.status === "complete" || status?.status === "sdk_checkpoint"
                 ? "bg-emerald-500/15 text-neuron-success border-emerald-500/30"
                 : status?.status === "running"
                   ? "bg-amber-500/15 text-neuron-warning border-amber-500/30"

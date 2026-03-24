@@ -129,7 +129,7 @@ def analysis_results(
     current_user: User = Depends(get_current_user),
 ):
     row = _require_owned_analysis(db, job_id, str(current_user.id))
-    if row.status != "complete":
+    if row.status not in ("complete", "sdk_checkpoint"):
         raise HTTPException(status_code=400, detail="Analysis not complete")
     model = db.get(ModelRegistry, row.model_id)
     traj_raw = dict(row.trajectory_data or {})

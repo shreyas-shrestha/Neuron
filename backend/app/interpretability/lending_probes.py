@@ -1,4 +1,4 @@
-"""Synthetic lending-style prompts for demographic probe demos (illustrative only)."""
+"""Synthetic lending-style prompts for probe demos (abstract applicant identifiers only)."""
 
 import re
 
@@ -16,23 +16,23 @@ LOAN_TEMPLATE = (
     "Employment: software engineer, 4 years. Zip: 94107."
 )
 
-# Illustrative name buckets for separation demo (not exhaustive census data).
+# Abstract buckets for separation / probe cycling (no real-world name proxies).
 NAME_GROUPS: dict[str, list[str]] = {
     "group_a": [
-        "Jamal Washington",
-        "Aaliyah Johnson",
-        "Darnell Brooks",
-        "Imani Carter",
+        "Applicant_Profile_Alpha_01",
+        "Applicant_Profile_Alpha_02",
+        "Applicant_Profile_Alpha_03",
+        "Applicant_Profile_Alpha_04",
     ],
     "group_b": [
-        "Emily Anderson",
-        "Bradley Miller",
-        "Sarah Thompson",
-        "Gregory Hayes",
+        "Applicant_Profile_Beta_01",
+        "Applicant_Profile_Beta_02",
+        "Applicant_Profile_Beta_03",
+        "Applicant_Profile_Beta_04",
     ],
 }
 
-NEUTRAL_NAME = "Alex Taylor"
+NEUTRAL_NAME = "Applicant_Profile_Neutral"
 
 
 def anonymize_probe_text(text: str) -> str:
@@ -45,7 +45,7 @@ def anonymize_probe_text(text: str) -> str:
 
 
 def build_probe_texts(n_samples: int = 100) -> tuple[list[str], list[int]]:
-    """Returns texts and binary labels (0 = group_a, 1 = group_b) cycling through names."""
+    """Returns texts and binary labels (0 = group_a, 1 = group_b) cycling through abstract IDs."""
     texts: list[str] = []
     labels: list[int] = []
     ga = NAME_GROUPS["group_a"]

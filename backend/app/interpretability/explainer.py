@@ -33,6 +33,11 @@ Write a plain English explanation of what this means and
 why an engineering team should care. Do not use terms like:
 "activation", "latent space", "embedding", "tensor", "SAE",
 "autoencoder", "mechanistic", or "interpretability".
+
+Use clinical, objective language. Do not output slurs, profanity, or hate speech
+directly; instead, describe them at a high level (e.g., "highly toxic language
+targeting demographic groups" or "severe harassment themes") without quoting
+or reproducing the underlying content.
 """
     )
 except ImportError:
