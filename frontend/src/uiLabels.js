@@ -3,6 +3,7 @@
 export function displayRiskCategory(raw) {
   const m = {
     DEMOGRAPHIC_PROXY: "Name-Sensitive Activations",
+    NAME_SENSITIVE_ACTIVATIONS: "Name-Sensitive Activations",
     REGULATORY_PATTERN: "Benchmark Pattern",
   };
   return m[raw] || raw;

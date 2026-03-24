@@ -2,15 +2,169 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Dark theme: inverted surfaces (near-black / zinc), light typography */
+:root {
+  --color-bg: #09090b;
+  --color-bg-subtle: #121214;
+  --color-bg-muted: #1c1c1f;
+  --color-border: #27272a;
+  --color-border-strong: #3f3f46;
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #a1a1aa;
+  --color-text-muted: #71717a;
+  --color-accent: #818cf8;
+  --color-accent-light: rgba(129, 140, 248, 0.14);
+  --color-accent-hover: #a5b4fc;
+  --color-success: #34d399;
+  --color-success-light: rgba(52, 211, 153, 0.12);
+  --color-warning: #fbbf24;
+  --color-warning-light: rgba(251, 191, 36, 0.12);
+  --color-danger: #f87171;
+  --color-danger-light: rgba(248, 113, 113, 0.12);
+  --color-low: #34d399;
+  --color-moderate: #fbbf24;
+  --color-high: #f87171;
+  --color-critical: #c4b5fd;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.55);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
 body {
   margin: 0;
   min-height: 100vh;
-  background: radial-gradient(1200px 600px at 20% -10%, rgba(0, 212, 255, 0.08), transparent),
-    #0a0f1e;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+@layer components {
+  .neuron-card {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+  }
+
+  .neuron-card-sm {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center font-medium transition-all duration-150 ease-out;
+    background: var(--color-accent);
+    color: #09090b;
+    border-radius: var(--radius-sm);
+    padding: 0 1rem;
+    min-height: 40px;
+    font-size: 14px;
+  }
+  .btn-primary:hover {
+    background: var(--color-accent-hover);
+    color: #09090b;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center font-medium transition-all duration-150 ease-out;
+    background: var(--color-bg-muted);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 0 1rem;
+    min-height: 40px;
+    font-size: 14px;
+  }
+  .btn-secondary:hover {
+    background: var(--color-border);
+  }
+
+  .input-neuron {
+    width: 100%;
+    background: var(--color-bg-muted);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.75rem;
+    font-size: 14px;
+    color: var(--color-text-primary);
+    transition: box-shadow 0.15s ease-out, border-color 0.15s ease-out;
+  }
+  .input-neuron:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.25);
+  }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--color-bg-muted) 25%,
+      var(--color-border-strong) 50%,
+      var(--color-bg-muted) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.95);
+  }
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
 }
 
 .glass {
-  background: rgba(13, 20, 40, 0.85);
-  border: 1px solid rgba(0, 212, 255, 0.12);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-md);
+}
+
+/* Modal: visible overlay + opaque panel (distinct from page bg) */
+.neuron-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.neuron-modal-panel {
+  width: 100%;
+  max-width: 28rem;
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  background: #26262c;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+
+.neuron-modal-panel--lg {
+  max-width: 36rem;
 }

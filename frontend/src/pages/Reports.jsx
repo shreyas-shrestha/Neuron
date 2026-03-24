@@ -2,6 +2,13 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import api, { generateReport } from "../services/api.js";
 
+const FRAMEWORKS = [
+  { id: "eu_ai_act", label: "EU AI Act" },
+  { id: "sec", label: "SEC" },
+  { id: "fda", label: "FDA" },
+  { id: "general", label: "General" },
+];
+
 export default function Reports() {
   const { analysisId } = useParams();
   const [framework, setFramework] = useState("eu_ai_act");
@@ -39,68 +46,124 @@ export default function Reports() {
     window.URL.revokeObjectURL(url);
   }
 
+  const fwLabel = FRAMEWORKS.find((f) => f.id === framework)?.label || framework;
+
   return (
-    <div className="p-6 max-w-3xl space-y-6">
+    <div className="max-w-3xl space-y-6">
       <div>
-        <div className="font-mono text-xs text-cyan-accent tracking-widest">BEHAVIOR REPORT</div>
-        <h1 className="text-2xl font-semibold mt-1">Regulatory export</h1>
-        <p className="text-slate-400 text-sm mt-1">
-          Analysis <span className="font-mono text-cyan-accent">{analysisId}</span>
+        <p className="text-[13px] text-neuron-mutedText font-sans">Reports</p>
+        <h2 className="font-display font-semibold text-[22px] text-neuron-primary mt-0.5">Regulatory export</h2>
+        <p className="text-[13px] text-neuron-secondary mt-1 font-sans">
+          Analysis{" "}
+          <span className="font-mono text-neuron-accent">{analysisId}</span>
         </p>
       </div>
 
-      <form onSubmit={onGenerate} className="glass p-6 rounded-sm space-y-4">
-        <label className="block text-sm">
-          <span className="text-xs font-mono text-slate-400">FRAMEWORK</span>
-          <select
-            className="mt-1 w-full bg-navy border border-white/15 px-3 py-2 font-mono text-sm"
-            value={framework}
-            onChange={(e) => setFramework(e.target.value)}
+      <div className="flex flex-wrap gap-2">
+        {FRAMEWORKS.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            onClick={() => setFramework(f.id)}
+            className={`px-4 py-2 rounded-full text-[13px] font-medium font-sans transition-all duration-150 ${
+              framework === f.id
+                ? "bg-neuron-accent text-white shadow-sm"
+                : "bg-neuron-muted text-neuron-secondary hover:bg-neuron-border"
+            }`}
           >
-            <option value="eu_ai_act">EU AI Act</option>
-            <option value="sec">SEC</option>
-            <option value="fda">FDA</option>
-            <option value="general">General</option>
-          </select>
-        </label>
-        <label className="block text-sm">
-          <span className="text-xs font-mono text-slate-400">ORGANIZATION</span>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      <form onSubmit={onGenerate} className="neuron-card-sm p-6 space-y-4 border border-neuron-border">
+        <label className="block">
+          <span className="text-[13px] font-medium text-neuron-secondary font-sans">Organization</span>
           <input
-            className="mt-1 w-full bg-navy border border-white/15 px-3 py-2 font-mono text-sm"
+            className="input-neuron mt-1.5 font-sans"
             value={organization}
             onChange={(e) => setOrganization(e.target.value)}
           />
         </label>
-        {err && <div className="text-critical text-sm">{err}</div>}
-        <button
-          type="submit"
-          disabled={busy}
-          className="px-4 py-2 bg-cyan-accent/90 text-navy font-mono text-xs font-semibold disabled:opacity-50"
-        >
-          {busy ? "GENERATING…" : "GENERATE PDF"}
+        {err && (
+          <div className="text-sm text-neuron-danger border-l-[3px] border-l-neuron-danger bg-neuron-danger-light px-3 py-2 rounded-sm font-sans">
+            {err}
+          </div>
+        )}
+        <button type="submit" disabled={busy} className="btn-primary disabled:opacity-50">
+          {busy ? "Generating…" : "Generate report"}
         </button>
       </form>
 
-      {reportId && (
-        <div className="glass p-4 rounded-sm space-y-2 text-sm">
-          <div className="font-mono text-xs text-slate-400">Report id</div>
-          <div className="font-mono">{reportId}</div>
-          <button
-            type="button"
-            onClick={downloadPdf}
-            className="text-cyan-accent hover:underline font-mono text-sm"
-          >
-            Download PDF
-          </button>
+      <section className="neuron-card p-6 border border-neuron-border transition-all duration-150 hover:shadow-lg">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-neuron-border pb-6 mb-6">
+          <div>
+            <h3 className="font-display font-bold text-[20px] text-neuron-primary">Behavior analysis report</h3>
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-neuron-mutedText font-sans">
+              <span>
+                Model: <span className="font-mono text-neuron-secondary">—</span>
+              </span>
+              <span>
+                Date: <span className="font-mono text-neuron-secondary">{new Date().toLocaleDateString()}</span>
+              </span>
+              <span>
+                Framework: <span className="font-mono text-neuron-secondary">{fwLabel}</span>
+              </span>
+              <span>
+                Org: <span className="font-mono text-neuron-secondary">{organization}</span>
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-4">
+              <span className="text-[11px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-neuron-low border border-emerald-100">
+                LOW 0
+              </span>
+              <span className="text-[11px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-neuron-moderate border border-amber-100">
+                MOD 0
+              </span>
+              <span className="text-[11px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-50 text-neuron-high border border-red-100">
+                HIGH 0
+              </span>
+            </div>
+          </div>
+          {reportId && (
+            <button type="button" onClick={downloadPdf} className="btn-primary text-[13px] min-h-[40px]">
+              Export PDF →
+            </button>
+          )}
         </div>
-      )}
 
-      <section className="text-xs text-slate-500 font-mono space-y-2">
-        <p>
-          MVP PDFs include executive summary, behavior matrix, and attestation block suitable for human review.
-        </p>
-        <p>Share-with-auditor tokens can be wired to signed URLs in production.</p>
+        <div className="text-[13px] text-neuron-secondary font-sans space-y-3">
+          <p className="font-medium text-neuron-primary">Findings (preview)</p>
+          <div className="border border-neuron-border rounded-md overflow-hidden">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-neuron-subtle text-neuron-mutedText text-[12px] font-medium border-b border-neuron-border">
+                  <th className="py-2 px-3">Category</th>
+                  <th className="py-2 px-3">Severity</th>
+                  <th className="py-2 px-3">Summary</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-neuron-border bg-neuron-subtle/40">
+                  <td className="py-2 px-3 font-mono text-[12px]">—</td>
+                  <td className="py-2 px-3 font-mono text-[12px]">—</td>
+                  <td className="py-2 px-3">Generate a report to populate findings.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {reportId && (
+          <p className="mt-6 text-[13px] font-mono text-neuron-mutedText">
+            Report id: <span className="text-neuron-primary">{reportId}</span>
+          </p>
+        )}
       </section>
+
+      <p className="text-[12px] text-neuron-mutedText font-sans leading-relaxed">
+        MVP PDFs include executive summary, behavior matrix, and attestation block suitable for human review.
+      </p>
     </div>
   );
 }

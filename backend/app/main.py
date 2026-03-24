@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
-from app.api import analysis, auth as auth_routes, dashboard, models as models_routes, reports, sdk as sdk_routes
+from app.api import analysis, auth as auth_routes, dashboard, demo as demo_routes, models as models_routes, reports, sdk as sdk_routes
 from app.core.auth import get_password_hash
 from app.core.database import Base, SessionLocal, engine
 from app.models.api_key import APIKey  # noqa: F401 — register table with Base.metadata
@@ -43,6 +43,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(demo_routes.router, prefix="/api/v1")
 app.include_router(auth_routes.router, prefix="/api/v1")
 app.include_router(models_routes.router, prefix="/api/v1")
 app.include_router(analysis.router, prefix="/api/v1")

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { fetchMe, registerModel } from "../services/api.js";
+import { analysisResults, analysisStatus, fetchMe, registerModel } from "../services/api.js";
 
 const STEPS = ["Connect", "Baseline", "Alerts", "Analysis"];
 
@@ -24,29 +24,60 @@ const ANALYSIS_PHASES = [
   "Extracting layer activations...",
   "Building behavioral baseline...",
   "Running probe analysis...",
-  "Generating behavior report...",
+  "Analysis complete",
 ];
+
+function CheckMini({ className = "w-4 h-4" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+  );
+}
+
+function bciToRiskLabel(score) {
+  const s = Number(score) || 0;
+  if (s < 10) return "LOW";
+  if (s < 25) return "MODERATE";
+  if (s < 50) return "HIGH";
+  return "CRITICAL";
+}
+
+function analysisPhaseProgress(status, progress) {
+  if (!status) return { completedCount: 0, failed: false };
+  if (status === "failed") return { completedCount: 0, failed: true };
+  if (status === "complete") return { completedCount: 5, failed: false };
+  if (status === "pending") return { completedCount: 0, failed: false };
+  if (status === "running") {
+    const p = progress ?? 0;
+    return { completedCount: 1 + Math.min(3, Math.floor(p * 4)), failed: false };
+  }
+  return { completedCount: 0, failed: false };
+}
 
 function StepIndicator({ step }) {
   return (
-    <div className="flex flex-wrap gap-2 justify-center mb-8">
+    <div className="flex flex-wrap justify-center gap-6 md:gap-12 mb-10 max-w-xl mx-auto">
       {STEPS.map((label, i) => {
         const n = i + 1;
         const active = n === step;
         const done = n < step;
         return (
-          <div
-            key={label}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-sm border font-mono text-xs ${
-              active
-                ? "border-cyan-accent text-cyan-accent bg-cyan-accent/10"
-                : done
-                  ? "border-white/20 text-slate-400"
-                  : "border-white/10 text-slate-600"
-            }`}
-          >
-            <span className="opacity-70">{n}</span>
-            {label}
+          <div key={label} className="flex flex-col items-center w-[88px]">
+            <div
+              className={`w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-semibold border-2 transition-all duration-200 ${
+                done
+                  ? "bg-neuron-accent border-neuron-accent text-zinc-950"
+                  : active
+                    ? "border-neuron-accent bg-neuron-muted text-neuron-primary ring-2 ring-neuron-accent/40 ring-offset-2 ring-offset-neuron-subtle"
+                    : "border-neuron-border bg-neuron-bg text-neuron-mutedText"
+              }`}
+            >
+              {done ? <CheckMini className="w-4 h-4 text-zinc-950" /> : n}
+            </div>
+            <span className="text-[12px] text-neuron-secondary mt-2 text-center font-sans leading-tight">
+              {label}
+            </span>
           </div>
         );
       })}
@@ -58,13 +89,13 @@ function CopyableBlock({ children, code }) {
   const [done, setDone] = useState(false);
   const text = code ?? children;
   return (
-    <div className="relative group">
-      <pre className="text-[11px] font-mono bg-black/50 border border-white/10 p-3 rounded-sm overflow-x-auto text-slate-200 whitespace-pre-wrap">
+    <div className="relative rounded-md border border-neuron-border bg-neuron-muted overflow-hidden">
+      <pre className="text-[13px] font-mono p-4 pr-20 text-neuron-primary whitespace-pre-wrap overflow-x-auto leading-relaxed">
         {children}
       </pre>
       <button
         type="button"
-        className="absolute top-2 right-2 px-2 py-0.5 text-[10px] font-mono bg-cyan-accent/20 text-cyan-accent border border-cyan-accent/30 rounded opacity-80 hover:opacity-100"
+        className="absolute top-2 right-2 btn-secondary text-[11px] min-h-0 py-1.5 px-2"
         onClick={async () => {
           await navigator.clipboard.writeText(text);
           setDone(true);
@@ -97,10 +128,11 @@ export default function Onboarding() {
   const [emailAlert, setEmailAlert] = useState("");
   const [blockDeploy, setBlockDeploy] = useState(false);
 
-  const [phaseDone, setPhaseDone] = useState([]);
-  const [phaseProgress, setPhaseProgress] = useState(0);
+  const [phaseProgressPct, setPhaseProgressPct] = useState(0);
   const [summary, setSummary] = useState(null);
   const [finishError, setFinishError] = useState("");
+  const [jobId, setJobId] = useState(null);
+  const [jobStatus, setJobStatus] = useState(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("neuron_onboarding_email");
@@ -108,88 +140,83 @@ export default function Onboarding() {
     else if (me?.email) setEmailAlert(me.email);
   }, [me?.email]);
 
+  const hfLive = connect === "hf" && hfId.trim().length > 0;
+
   useEffect(() => {
-    if (step !== 4) return undefined;
-    setPhaseDone([]);
-    setPhaseProgress(0);
-    setSummary(null);
-    setFinishError("");
+    if (step !== 4 || !hfLive) return undefined;
     let cancelled = false;
-    let i = 0;
-    async function finishOnboarding() {
+    setFinishError("");
+    setSummary(null);
+    setJobId(null);
+    setJobStatus(null);
+    setPhaseProgressPct(0);
+    (async () => {
       try {
-        if (connect === "hf" && hfId.trim()) {
-          const short = hfId.split("/").pop() || "model";
-          const domain = DOMAIN_MAP[probeSet] || "general";
-          const res = await registerModel({
-            name: short,
-            huggingface_id: hfId.trim(),
-            domain,
-          });
-          if (!cancelled) {
-            setSummary({
-              bci: 12,
-              risk: "LOW",
-              layers: 12,
-              analysisId: res.initial_analysis_job_id,
-            });
-          }
-          return;
-        }
-        if (connect === "upload") {
-          if (!cancelled) {
-            setSummary({
-              bci: 6,
-              risk: "LOW",
-              layers: uploadName ? 20 : 12,
-              analysisId: null,
-            });
-          }
-          return;
-        }
-        if (!cancelled) {
-          setSummary({
-            bci: 0,
-            risk: "LOW",
-            layers: 20,
-            analysisId: null,
-          });
-        }
+        const short = hfId.split("/").pop() || "model";
+        const domain = DOMAIN_MAP[probeSet] || "general";
+        const res = await registerModel({
+          name: short,
+          huggingface_id: hfId.trim(),
+          domain,
+        });
+        if (!cancelled) setJobId(res.initial_analysis_job_id);
       } catch (e) {
         if (!cancelled) {
           setFinishError(e?.response?.data?.detail || e?.message || "Registration failed");
-          setSummary({ bci: null, risk: "—", layers: "—", analysisId: null });
         }
       }
-    }
-    function tick() {
-      if (cancelled) return;
-      if (i >= ANALYSIS_PHASES.length) {
-        setPhaseProgress(100);
-        finishOnboarding();
-        return;
-      }
-      setPhaseDone((d) => [...d, i]);
-      setPhaseProgress(((i + 1) / ANALYSIS_PHASES.length) * 100);
-      i += 1;
-      setTimeout(tick, 800);
-    }
-    tick();
+    })();
     return () => {
       cancelled = true;
     };
-  }, [step, connect, hfId, uploadName, probeSet]);
+  }, [step, hfLive, hfId, probeSet]);
+
+  useEffect(() => {
+    if (!jobId) return undefined;
+    let cancelled = false;
+    async function tick() {
+      try {
+        const s = await analysisStatus(jobId);
+        if (cancelled) return;
+        setJobStatus(s);
+        setPhaseProgressPct(Math.round((s.progress ?? 0) * 100));
+        if (s.status === "complete") {
+          const r = await analysisResults(jobId);
+          if (cancelled) return;
+          const bci = Math.round(r.overall_risk_score ?? 0);
+          setSummary({
+            bci,
+            risk: bciToRiskLabel(r.overall_risk_score ?? 0),
+            layers: r.trajectory?.layer_count ?? "—",
+            analysisId: jobId,
+          });
+          return;
+        }
+        if (s.status === "failed") {
+          setFinishError("Analysis job failed.");
+        }
+      } catch (e) {
+        if (!cancelled) setFinishError(e?.response?.data?.detail || e?.message || "Status poll failed");
+      }
+    }
+    tick();
+    const iv = setInterval(tick, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+    };
+  }, [jobId]);
 
   const canNext1 = connect === "hf" ? hfId.trim().length > 0 : connect === "upload" ? true : true;
   const canNext2 =
     baseline === "validation" ? baselineFile != null : true;
 
   return (
-    <div className="p-6 max-w-3xl mx-auto min-h-screen">
-      <div className="mb-6">
-        <div className="font-mono text-xs text-cyan-accent tracking-widest">ONBOARDING</div>
-        <h1 className="text-2xl font-semibold mt-1">Add a model</h1>
-        <p className="text-slate-400 text-sm mt-1">
+    <div className="max-w-3xl mx-auto min-h-screen pb-12">
+      <div className="mb-8">
+        <p className="text-[13px] text-neuron-mutedText font-sans tracking-wide">Onboarding</p>
+        <h1 className="font-display font-semibold text-2xl text-neuron-primary mt-1">Add a model</h1>
+        <p className="text-neuron-secondary text-sm mt-1 font-sans leading-relaxed">
           Connect a checkpoint, set a behavioral baseline, and wire alerts before the next retrain ships.
         </p>
       </div>
@@ -198,20 +225,20 @@ export default function Onboarding() {
 
       {step === 1 && (
         <section className="space-y-4">
-          <h2 className="font-mono text-sm text-cyan-accent">Step 1 — Connect your model</h2>
+          <h2 className="font-display font-semibold text-[16px] text-neuron-primary">Step 1 — Connect your model</h2>
           <div className="grid gap-3 md:grid-cols-1">
             <button
               type="button"
               onClick={() => setConnect("hf")}
-              className={`text-left glass p-4 rounded-sm border transition-colors ${
-                connect === "hf" ? "border-cyan-accent/50" : "border-white/10 hover:border-white/20"
+              className={`text-left bg-neuron-bg rounded-lg shadow-md p-4 transition-all duration-150 hover:shadow-lg border-2 ${
+                connect === "hf" ? "border-neuron-accent bg-neuron-accent-light/40" : "border-neuron-border"
               }`}
             >
               <div className="font-medium">HuggingFace Model ID</div>
-              <p className="text-xs text-slate-500 mt-1 font-mono">We&apos;ll download and analyze your model</p>
+              <p className="text-xs text-neuron-secondary mt-1 font-sans">We&apos;ll download and analyze your model</p>
               {connect === "hf" && (
                 <input
-                  className="mt-3 w-full bg-navy border border-white/15 px-3 py-2 font-mono text-sm"
+                  className="input-neuron mt-3 w-full font-mono text-sm"
                   placeholder="mistralai/Mistral-7B"
                   value={hfId}
                   onChange={(e) => setHfId(e.target.value)}
@@ -223,14 +250,14 @@ export default function Onboarding() {
             <button
               type="button"
               onClick={() => setConnect("upload")}
-              className={`text-left glass p-4 rounded-sm border transition-colors ${
-                connect === "upload" ? "border-cyan-accent/50" : "border-white/10 hover:border-white/20"
+              className={`text-left bg-neuron-bg rounded-lg shadow-md p-4 transition-all duration-150 hover:shadow-lg border-2 ${
+                connect === "upload" ? "border-neuron-accent bg-neuron-accent-light/40" : "border-neuron-border"
               }`}
             >
               <div className="font-medium">Upload checkpoint</div>
-              <p className="text-xs text-slate-500 mt-1 font-mono">Up to 20GB, stays private</p>
+              <p className="text-xs text-neuron-secondary mt-1 font-sans">Up to 20GB, stays private</p>
               {connect === "upload" && (
-                <label className="mt-3 block border border-dashed border-white/20 rounded-sm p-6 text-center text-sm text-slate-400 cursor-pointer hover:bg-white/5">
+                <label className="mt-3 block border border-dashed border-neuron-border rounded-md p-6 text-center text-sm text-neuron-secondary cursor-pointer hover:bg-neuron-subtle transition-colors">
                   <input
                     type="file"
                     accept=".pt,.pth,.safetensors"
@@ -242,7 +269,7 @@ export default function Onboarding() {
                     }}
                   />
                   Drop .pt / .safetensors or click to browse
-                  {uploadName && <div className="mt-2 text-cyan-accent font-mono text-xs">{uploadName}</div>}
+                  {uploadName && <div className="mt-2 text-neuron-accent font-mono text-xs">{uploadName}</div>}
                 </label>
               )}
             </button>
@@ -250,17 +277,17 @@ export default function Onboarding() {
             <button
               type="button"
               onClick={() => setConnect("sdk")}
-              className={`text-left glass p-4 rounded-sm border-2 transition-colors ${
-                connect === "sdk" ? "border-cyan-accent shadow-[0_0_0_1px_rgba(0,212,255,0.2)]" : "border-white/10 hover:border-white/20"
+              className={`text-left bg-neuron-bg rounded-lg shadow-md p-4 transition-all duration-150 hover:shadow-lg border-2 ${
+                connect === "sdk" ? "border-neuron-accent bg-neuron-accent-light/50" : "border-neuron-border"
               }`}
             >
               <div className="flex items-center gap-2">
                 <span className="font-medium">Python SDK</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-accent/20 text-cyan-accent border border-cyan-accent/40">
-                  RECOMMENDED
+                <span className="text-[10px] font-mono font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-500 text-zinc-950 border border-emerald-400/90 shadow-[0_0_12px_-2px_rgba(52,211,153,0.45)]">
+                  Recommended
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-1 font-mono">Monitor behavior during retraining</p>
+              <p className="text-xs text-neuron-secondary mt-1 font-sans">Monitor behavior during retraining</p>
               {connect === "sdk" && (
                 <div className="mt-4 space-y-3">
                   <CopyableBlock code="pip install neuron-sdk">
@@ -292,7 +319,7 @@ neuron.checkpoint(model, epoch=epoch)`}
               type="button"
               disabled={!canNext1}
               onClick={() => setStep(2)}
-              className="px-4 py-2 bg-cyan-accent/90 text-navy font-mono text-xs font-semibold disabled:opacity-40"
+              className="btn-primary text-[13px] min-h-[40px] disabled:opacity-40"
             >
               Continue
             </button>
@@ -302,18 +329,18 @@ neuron.checkpoint(model, epoch=epoch)`}
 
       {step === 2 && (
         <section className="space-y-4">
-          <h2 className="font-mono text-sm text-cyan-accent">Step 2 — Set baseline</h2>
+          <h2 className="font-display font-semibold text-[16px] text-neuron-primary">Step 2 — Set baseline</h2>
           <div className="space-y-3">
             <label
-              className={`flex flex-col glass p-4 rounded-sm border cursor-pointer ${
-                baseline === "validation" ? "border-cyan-accent/50" : "border-white/10"
+              className={`flex flex-col bg-neuron-bg rounded-lg shadow-md p-4 cursor-pointer border-2 transition-all duration-150 hover:shadow-lg ${
+                baseline === "validation" ? "border-neuron-accent bg-neuron-accent-light/30" : "border-neuron-border"
               }`}
             >
               <div className="flex items-center gap-2">
                 <input type="radio" checked={baseline === "validation"} onChange={() => setBaseline("validation")} />
                 <span className="font-medium">Upload validation dataset</span>
               </div>
-              <p className="text-xs text-slate-500 mt-1 ml-6 font-mono">Recommended: 500-1000 samples</p>
+              <p className="text-xs text-neuron-secondary mt-1 ml-6 font-sans">Recommended: 500-1000 samples</p>
               {baseline === "validation" && (
                 <input
                   type="file"
@@ -325,18 +352,18 @@ neuron.checkpoint(model, epoch=epoch)`}
             </label>
 
             <label
-              className={`flex flex-col glass p-4 rounded-sm border cursor-pointer ${
-                baseline === "probe" ? "border-cyan-accent/50" : "border-white/10"
+              className={`flex flex-col bg-neuron-bg rounded-lg shadow-md p-4 cursor-pointer border-2 transition-all duration-150 hover:shadow-lg ${
+                baseline === "probe" ? "border-neuron-accent bg-neuron-accent-light/30" : "border-neuron-border"
               }`}
             >
               <div className="flex items-center gap-2">
                 <input type="radio" checked={baseline === "probe"} onChange={() => setBaseline("probe")} />
                 <span className="font-medium">Use standard probe set</span>
               </div>
-              <p className="text-xs text-slate-500 mt-1 ml-6 font-mono">Curated probes for your domain</p>
+              <p className="text-xs text-neuron-secondary mt-1 ml-6 font-sans">Curated probes for your domain</p>
               {baseline === "probe" && (
                 <select
-                  className="mt-2 ml-6 bg-navy border border-white/15 px-3 py-2 font-mono text-sm max-w-xs"
+                  className="input-neuron mt-2 ml-6 font-mono text-sm max-w-xs"
                   value={probeSet}
                   onChange={(e) => setProbeSet(e.target.value)}
                 >
@@ -350,8 +377,8 @@ neuron.checkpoint(model, epoch=epoch)`}
             </label>
 
             <label
-              className={`flex flex-col glass p-4 rounded-sm border cursor-pointer ${
-                baseline === "first_checkpoint" ? "border-cyan-accent/50" : "border-white/10"
+              className={`flex flex-col bg-neuron-bg rounded-lg shadow-md p-4 cursor-pointer border-2 transition-all duration-150 hover:shadow-lg ${
+                baseline === "first_checkpoint" ? "border-neuron-accent bg-neuron-accent-light/30" : "border-neuron-border"
               }`}
             >
               <div className="flex items-center gap-2">
@@ -362,20 +389,24 @@ neuron.checkpoint(model, epoch=epoch)`}
                 />
                 <span className="font-medium">Build from first checkpoint</span>
               </div>
-              <p className="text-xs text-slate-500 mt-1 ml-6 font-mono">
+              <p className="text-xs text-neuron-secondary mt-1 ml-6 font-sans">
                 We&apos;ll use your first neuron.checkpoint() call as the baseline
               </p>
             </label>
           </div>
           <div className="flex justify-between pt-2">
-            <button type="button" onClick={() => setStep(1)} className="text-sm text-slate-400 hover:text-white font-mono">
+            <button
+              type="button"
+              onClick={() => setStep(1)}
+              className="text-sm text-neuron-secondary hover:text-neuron-primary font-sans font-medium"
+            >
               Back
             </button>
             <button
               type="button"
               disabled={!canNext2}
               onClick={() => setStep(3)}
-              className="px-4 py-2 bg-cyan-accent/90 text-navy font-mono text-xs font-semibold disabled:opacity-40"
+              className="btn-primary text-[13px] min-h-[40px] disabled:opacity-40"
             >
               Continue
             </button>
@@ -385,63 +416,69 @@ neuron.checkpoint(model, epoch=epoch)`}
 
       {step === 3 && (
         <section className="space-y-4">
-          <h2 className="font-mono text-sm text-cyan-accent">Step 3 — Configure alerts</h2>
-          <div className="glass p-4 rounded-sm space-y-4 border border-white/10">
-            <label className="block text-sm">
-              <span className="text-xs font-mono text-slate-500">BEHAVIOR CHANGE INDEX THRESHOLD</span>
+          <h2 className="font-display font-semibold text-[16px] text-neuron-primary">Step 3 — Configure alerts</h2>
+          <div className="bg-neuron-bg border border-neuron-border rounded-lg shadow-md p-6 space-y-4">
+            <label className="block text-sm font-sans">
+              <span className="text-[12px] font-medium text-neuron-secondary">Behavior change index threshold</span>
               <input
                 type="number"
-                className="mt-1 w-full max-w-xs bg-navy border border-white/15 px-3 py-2 font-mono text-sm"
+                className="input-neuron mt-1.5 w-full max-w-xs font-mono text-sm"
                 value={bciThreshold}
                 onChange={(e) => setBciThreshold(Number(e.target.value))}
               />
             </label>
 
-            <label className="flex items-start gap-3 text-sm">
-              <input type="checkbox" checked={featEmergence} onChange={(e) => setFeatEmergence(e.target.checked)} />
+            <label className="flex items-start gap-3 text-sm font-sans">
+              <input
+                type="checkbox"
+                checked={featEmergence}
+                onChange={(e) => setFeatEmergence(e.target.checked)}
+                className="mt-1 rounded border-neuron-border text-neuron-accent focus:ring-neuron-accent"
+              />
               <span>
-                <span className="font-medium">New feature emergence</span>
-                <p className="text-xs text-slate-500 font-mono mt-0.5">
-                  Alert when new features activate in layers 6-12
-                </p>
+                <span className="font-medium text-neuron-primary">New feature emergence</span>
+                <p className="text-xs text-neuron-secondary mt-0.5">Alert when new features activate in layers 6-12</p>
               </span>
             </label>
 
-            <label className="flex items-start gap-3 text-sm">
-              <input type="checkbox" checked={demoSep} onChange={(e) => setDemoSep(e.target.checked)} />
+            <label className="flex items-start gap-3 text-sm font-sans">
+              <input
+                type="checkbox"
+                checked={demoSep}
+                onChange={(e) => setDemoSep(e.target.checked)}
+                className="mt-1 rounded border-neuron-border text-neuron-accent focus:ring-neuron-accent"
+              />
               <span>
-                <span className="font-medium">Demographic separability</span>
-                <p className="text-xs text-slate-500 font-mono mt-0.5">
-                  Alert when model treats groups differently
-                </p>
+                <span className="font-medium text-neuron-primary">Demographic separability</span>
+                <p className="text-xs text-neuron-secondary mt-0.5">Alert when model treats groups differently</p>
               </span>
             </label>
 
-            <label className="block text-sm">
-              <span className="text-xs font-mono text-slate-500">ALERT WHEN ANY LAYER SHIFTS &gt; (%)</span>
+            <label className="block text-sm font-sans">
+              <span className="text-[12px] font-medium text-neuron-secondary">Alert when any layer shifts &gt; (%)</span>
               <input
                 type="number"
-                className="mt-1 w-full max-w-xs bg-navy border border-white/15 px-3 py-2 font-mono text-sm"
+                className="input-neuron mt-1.5 w-full max-w-xs font-mono text-sm"
                 value={layerShiftPct}
                 onChange={(e) => setLayerShiftPct(Number(e.target.value))}
               />
             </label>
 
-            <div className="border-t border-white/10 pt-4 space-y-3">
-              <div className="text-xs font-mono text-slate-500">NOTIFICATION CHANNELS</div>
-              <label className="block text-sm">
-                <span className="text-xs font-mono text-slate-500">SLACK WEBHOOK URL (OPTIONAL)</span>
+            <div className="border-t border-neuron-border pt-4 space-y-3">
+              <div className="text-[11px] font-semibold tracking-wider text-neuron-mutedText uppercase">Notification channels</div>
+              <label className="block text-sm font-sans">
+                <span className="text-[12px] font-medium text-neuron-secondary">Slack webhook URL (optional)</span>
                 <input
-                  className="mt-1 w-full bg-navy border border-white/15 px-3 py-2 font-mono text-sm"
+                  className="input-neuron mt-1.5 w-full font-mono text-sm"
                   value={slackUrl}
                   onChange={(e) => setSlackUrl(e.target.value)}
                   placeholder="https://hooks.slack.com/..."
                 />
               </label>
-              <label className="block text-sm">
-                <span className="text-xs font-mono text-slate-500">EMAIL</span>
+              <label className="block text-sm font-sans">
+                <span className="text-[12px] font-medium text-neuron-secondary">Email</span>
                 <input
-                  className="mt-1 w-full bg-navy border border-white/15 px-3 py-2 font-mono text-sm"
+                  className="input-neuron mt-1.5 w-full font-mono text-sm"
                   value={emailAlert}
                   onChange={(e) => {
                     setEmailAlert(e.target.value);
@@ -450,15 +487,20 @@ neuron.checkpoint(model, epoch=epoch)`}
                   placeholder="you@company.com"
                 />
               </label>
-              <label className="flex items-start gap-3 text-sm">
-                <input type="checkbox" checked={blockDeploy} onChange={(e) => setBlockDeploy(e.target.checked)} />
+              <label className="flex items-start gap-3 text-sm font-sans">
+                <input
+                  type="checkbox"
+                  checked={blockDeploy}
+                  onChange={(e) => setBlockDeploy(e.target.checked)}
+                  className="mt-1 rounded border-neuron-border text-neuron-accent focus:ring-neuron-accent"
+                />
                 <span>
-                  <span className="font-medium">Block deployment automatically</span>
-                  <p className="text-xs text-slate-500 font-mono mt-0.5">Requires CI/CD integration</p>
+                  <span className="font-medium text-neuron-primary">Block deployment automatically</span>
+                  <p className="text-xs text-neuron-secondary mt-0.5">Requires CI/CD integration</p>
                 </span>
               </label>
               {blockDeploy && (
-                <pre className="text-[11px] font-mono bg-black/40 border border-cyan-accent/20 p-4 rounded-sm text-slate-300 overflow-x-auto">
+                <pre className="text-[12px] font-mono bg-neuron-muted border border-neuron-border p-4 rounded-md text-neuron-primary overflow-x-auto transition-all duration-300">
                   {`Add to your GitHub Actions workflow:
 
 - uses: neuron-ai/action@v1
@@ -471,14 +513,14 @@ neuron.checkpoint(model, epoch=epoch)`}
             </div>
           </div>
           <div className="flex justify-between pt-2">
-            <button type="button" onClick={() => setStep(2)} className="text-sm text-slate-400 hover:text-white font-mono">
-              Back
-            </button>
             <button
               type="button"
-              onClick={() => setStep(4)}
-              className="px-4 py-2 bg-cyan-accent/90 text-navy font-mono text-xs font-semibold"
+              onClick={() => setStep(2)}
+              className="text-sm text-neuron-secondary hover:text-neuron-primary font-sans font-medium"
             >
+              Back
+            </button>
+            <button type="button" onClick={() => setStep(4)} className="btn-primary text-[13px] min-h-[40px]">
               Run first analysis
             </button>
           </div>
@@ -487,71 +529,141 @@ neuron.checkpoint(model, epoch=epoch)`}
 
       {step === 4 && (
         <section className="space-y-6">
-          <h2 className="font-mono text-sm text-cyan-accent">Step 4 — First analysis</h2>
-          <div className="h-2 w-full bg-navy border border-white/10 rounded-sm overflow-hidden">
-            <div
-              className="h-full bg-cyan-accent/80 transition-all duration-300"
-              style={{ width: `${phaseProgress}%` }}
-            />
-          </div>
-          <ul className="space-y-3">
-            {ANALYSIS_PHASES.map((label, idx) => (
-              <li
-                key={label}
-                className={`flex items-center gap-3 font-mono text-sm transition-opacity duration-300 ${
-                  phaseDone.includes(idx) ? "text-cyan-accent" : "text-slate-600"
-                }`}
-              >
-                <span>{phaseDone.includes(idx) ? "✓" : "…"}</span>
-                {label}
-              </li>
-            ))}
-          </ul>
+          <h2 className="font-display font-semibold text-[16px] text-neuron-primary">Step 4 — First analysis</h2>
 
-          {phaseProgress >= 100 && summary && (
-            <div className="glass p-5 rounded-sm border border-white/10 space-y-4">
-              {finishError && <div className="text-critical text-sm font-mono">{String(finishError)}</div>}
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div>
-                  <div className="text-xs font-mono text-slate-500">BCI</div>
-                  <div className="text-2xl font-mono text-cyan-accent">{summary.bci ?? "—"}</div>
-                </div>
-                <div>
-                  <div className="text-xs font-mono text-slate-500">Risk</div>
-                  <div className="text-2xl font-mono text-amber-warn">{summary.risk}</div>
-                </div>
-                <div>
-                  <div className="text-xs font-mono text-slate-500">Layers</div>
-                  <div className="text-2xl font-mono text-slate-200">{summary.layers}</div>
-                </div>
+          {!hfLive && (
+            <div className="bg-amber-50 border border-amber-200 border-l-[3px] border-l-neuron-warning rounded-lg p-5 text-sm text-neuron-primary font-sans">
+              <p className="mb-3 leading-relaxed">
+                Live analysis with real progress runs when you choose <strong>HuggingFace Model ID</strong> in step 1.
+                Go back and select HF, or use the{" "}
+                <Link to="/demo" className="text-neuron-accent font-semibold hover:underline">
+                  Live Demo
+                </Link>{" "}
+                for a browser-only walkthrough.
+              </p>
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="text-xs font-medium text-neuron-accent hover:underline"
+              >
+                ← Change connection method
+              </button>
+            </div>
+          )}
+
+          {hfLive && (
+            <>
+              <p className="text-[13px] text-neuron-mutedText font-sans">
+                ~2 min for GPT-2 · ~8 min for 7B-class models
+              </p>
+              <div className="h-2 w-full bg-neuron-muted rounded-full overflow-hidden border border-neuron-border">
+                <div
+                  className="h-full bg-neuron-accent transition-all duration-300 rounded-full"
+                  style={{
+                    width: `${jobStatus?.status === "complete" ? 100 : phaseProgressPct}%`,
+                  }}
+                />
               </div>
-              {summary.analysisId ? (
-                <Link
-                  to={`/analysis/${summary.analysisId}`}
-                  className="inline-block w-full text-center px-4 py-3 bg-cyan-accent/90 text-navy font-mono text-sm font-semibold"
-                >
-                  View full analysis →
-                </Link>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm text-slate-400">
-                    Finish wiring the SDK or upload flow; when a full analysis job exists, it will open here.
-                  </p>
-                  <Link
-                    to="/"
-                    className="inline-block text-center px-4 py-3 border border-white/15 font-mono text-sm hover:bg-white/5"
+              <ul className="space-y-3">
+                {(() => {
+                  const { completedCount, failed } = analysisPhaseProgress(
+                    jobStatus?.status,
+                    jobStatus?.progress
+                  );
+                  return ANALYSIS_PHASES.map((label, idx) => {
+                    const allDone = jobStatus?.status === "complete";
+                    const check = allDone || idx < completedCount;
+                    const active =
+                      !allDone &&
+                      !failed &&
+                      idx === completedCount &&
+                      jobStatus?.status !== "failed";
+                    return (
+                      <li
+                        key={label}
+                        className={`flex items-center gap-3 font-sans text-sm transition-colors duration-200 ${
+                          check
+                            ? "text-neuron-success line-through decoration-neuron-success/50"
+                            : active
+                              ? "text-neuron-accent font-medium"
+                              : "text-neuron-mutedText"
+                        }`}
+                      >
+                        <span
+                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-mono ${
+                            check
+                              ? "bg-emerald-100 text-neuron-success"
+                              : active
+                                ? "bg-neuron-accent-light text-neuron-accent animate-pulse"
+                                : "bg-neuron-muted text-neuron-mutedText"
+                          }`}
+                        >
+                          {check ? (
+                            <CheckMini className="w-3.5 h-3.5 text-neuron-success" />
+                          ) : active ? (
+                            <span className="h-2 w-2 rounded-full bg-neuron-accent animate-pulse" aria-hidden />
+                          ) : (
+                            <span className="text-neuron-mutedText">…</span>
+                          )}
+                        </span>
+                        {label}
+                      </li>
+                    );
+                  });
+                })()}
+              </ul>
+              {finishError && (
+                <div className="text-neuron-danger text-sm font-sans border-l-[3px] border-l-neuron-danger bg-neuron-danger-light p-3 rounded-sm">
+                  {finishError}
+                  <button
+                    type="button"
+                    className="block mt-2 text-neuron-accent font-medium underline text-xs"
+                    onClick={() => {
+                      setStep(3);
+                      setFinishError("");
+                    }}
                   >
-                    Back to dashboard
-                  </Link>
+                    Retry from alerts step
+                  </button>
                 </div>
               )}
-            </div>
+
+              {jobStatus?.status === "complete" && summary && (
+                <div className="bg-neuron-bg border border-neuron-border rounded-lg shadow-md p-6 space-y-5">
+                  <div className="flex justify-center text-neuron-success">
+                    <CheckMini className="w-12 h-12 animate-[pulse_0.6s_ease-out_1]" aria-hidden />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div>
+                      <div className="text-[12px] font-sans text-neuron-mutedText">BCI</div>
+                      <div className="text-2xl font-mono font-bold text-neuron-accent">{summary.bci ?? "—"}</div>
+                    </div>
+                    <div>
+                      <div className="text-[12px] font-sans text-neuron-mutedText">Risk</div>
+                      <div className="text-2xl font-mono font-bold text-neuron-warning">{summary.risk}</div>
+                    </div>
+                    <div>
+                      <div className="text-[12px] font-sans text-neuron-mutedText">Layers</div>
+                      <div className="text-2xl font-mono font-bold text-neuron-primary">{summary.layers}</div>
+                    </div>
+                  </div>
+                  {summary.analysisId ? (
+                    <Link
+                      to={`/analysis/${summary.analysisId}`}
+                      className="inline-block w-full text-center btn-primary py-3 text-[14px]"
+                    >
+                      View full analysis →
+                    </Link>
+                  ) : null}
+                </div>
+              )}
+            </>
           )}
         </section>
       )}
 
-      <p className="mt-10 text-center text-xs text-slate-600 font-mono">
-        <Link to="/" className="text-cyan-accent/80 hover:underline">
+      <p className="mt-10 text-center text-xs text-neuron-mutedText font-sans">
+        <Link to="/" className="text-neuron-accent font-medium hover:underline">
           Skip to dashboard
         </Link>
       </p>

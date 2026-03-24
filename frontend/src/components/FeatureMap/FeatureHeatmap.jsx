@@ -1,5 +1,16 @@
 import { useMemo, useState } from "react";
 
+/** Dark surface → indigo highlight (no bright text). */
+function cellColor(intensity) {
+  const t = Math.max(0, Math.min(1, intensity));
+  const lo = { r: 28, g: 28, b: 31 };
+  const hi = { r: 79, g: 70, b: 229 };
+  const r = Math.round(lo.r + (hi.r - lo.r) * t);
+  const g = Math.round(lo.g + (hi.g - lo.g) * t);
+  const b = Math.round(lo.b + (hi.b - lo.b) * t);
+  return `rgb(${r},${g},${b})`;
+}
+
 export default function FeatureHeatmap({ heatmap, featureIds, onCell }) {
   const max = useMemo(() => {
     if (!heatmap || !heatmap.length) return 1;
@@ -9,7 +20,7 @@ export default function FeatureHeatmap({ heatmap, featureIds, onCell }) {
   const [sel, setSel] = useState(null);
 
   if (!heatmap || !heatmap.length) {
-    return <div className="text-slate-500 text-sm font-mono">No heatmap data</div>;
+    return <div className="text-neuron-secondary text-sm font-sans">No heatmap data</div>;
   }
 
   const cols = heatmap[0]?.length || 0;
@@ -18,20 +29,20 @@ export default function FeatureHeatmap({ heatmap, featureIds, onCell }) {
   return (
     <div className="overflow-x-auto">
       <div
-        className="grid gap-px bg-white/10 p-px rounded-sm"
+        className="grid gap-px bg-neuron-border p-px rounded-sm border border-neuron-border"
         style={{
           gridTemplateColumns: `80px repeat(${cols}, minmax(0,1fr))`,
         }}
       >
-        <div className="text-[10px] font-mono text-slate-500 px-2 py-1">layer \\ feat</div>
+        <div className="text-[10px] font-mono text-neuron-mutedText px-2 py-1 bg-neuron-bg">layer \ feat</div>
         {fids.map((fid) => (
-          <div key={fid} className="text-[9px] font-mono text-slate-500 text-center truncate px-0.5">
+          <div key={fid} className="text-[9px] font-mono text-neuron-mutedText text-center truncate px-0.5 bg-neuron-bg py-1">
             {fid}
           </div>
         ))}
         {heatmap.map((row, li) => (
           <div key={`row-${li}`} className="contents">
-            <div className="text-[10px] font-mono text-cyan-accent/80 px-2 py-1 bg-navy flex items-center">
+            <div className="text-[10px] font-mono text-neuron-secondary px-2 py-1 bg-neuron-muted flex items-center border-r border-neuron-border">
               L{li}
             </div>
             {row.map((cell, fi) => {
@@ -41,10 +52,13 @@ export default function FeatureHeatmap({ heatmap, featureIds, onCell }) {
                 <button
                   type="button"
                   key={`${li}-${fi}`}
-                  className={`h-6 w-full transition-colors ${active ? "ring-1 ring-cyan-accent" : ""}`}
+                  className={`h-6 w-full transition-all duration-150 border border-transparent ${
+                    active ? "ring-2 ring-neuron-accent ring-offset-1 ring-offset-neuron-bg z-10" : "hover:brightness-110"
+                  }`}
                   style={{
-                    background: `rgba(0,212,255,${0.12 + intensity * 0.75})`,
+                    background: cellColor(intensity),
                   }}
+                  title={`Feature ${fids[fi]} · layer ${li} · ${cell?.toFixed?.(4) ?? cell}`}
                   onClick={() => {
                     setSel({ l: li, f: fi, v: cell });
                     onCell?.({ layer: li, featureIndex: fids[fi], value: cell });
@@ -56,7 +70,7 @@ export default function FeatureHeatmap({ heatmap, featureIds, onCell }) {
         ))}
       </div>
       {sel && (
-        <div className="mt-2 text-xs font-mono text-slate-400">
+        <div className="mt-2 text-xs font-mono text-neuron-secondary">
           Selected: layer {sel.l}, feature {fids[sel.f]}, activation {sel.v?.toFixed(4)}
         </div>
       )}

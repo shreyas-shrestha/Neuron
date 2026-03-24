@@ -23,6 +23,7 @@ dependencies = [
     "python-multipart>=0.0.9",
     "einops>=0.8.0",
     "email-validator>=2.0.0",
+    "datasets>=3.0.0",
 ]
 
 [project.optional-dependencies]
