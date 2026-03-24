@@ -12,6 +12,13 @@ class CheckpointPayload(BaseModel):
     label: Optional[str] = None
     baseline_id: Optional[str] = None
     state_summary: dict[str, Any] = Field(default_factory=dict)
+    artifact_uri: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional s3://bucket/key or https://... URI after uploading weights via presigned URL. "
+            "Never send raw checkpoint bytes through this JSON endpoint."
+        ),
+    )
     behavior_change_index: Optional[float] = Field(
         default=None,
         description=(
@@ -43,3 +50,19 @@ class CheckpointHistoryItem(BaseModel):
 class ModelHistoryResponse(BaseModel):
     model_id: str
     checkpoints: list[CheckpointHistoryItem]
+
+
+class ArtifactPresignRequest(BaseModel):
+    filename: str = Field(default="checkpoint.pt", description="Original filename (used for object key suffix)")
+    content_type: str = Field(
+        default="application/octet-stream",
+        description="Content-Type the client must send on the PUT to S3",
+    )
+
+
+class ArtifactPresignResponse(BaseModel):
+    upload_url: str
+    object_key: str
+    bucket: str
+    expires_in: int
+    required_headers: dict[str, str] = Field(default_factory=dict)

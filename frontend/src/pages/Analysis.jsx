@@ -16,7 +16,7 @@ import {
 } from "../services/api.js";
 import { useDebounced } from "../hooks/useDebounced.js";
 import { bciRiskLabel, bciTextClass, riskBadgeClass } from "../utils/bciDisplay.js";
-import { backoffInterval } from "../utils/pollBackoff.js";
+import { ANALYSIS_POLL_MAX_WAIT_MS, backoffInterval, pollTimedOut } from "../utils/pollBackoff.js";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -54,6 +54,7 @@ export default function Analysis() {
   const [compare, setCompare] = useState(null);
   const [showFeatureMap, setShowFeatureMap] = useState(false);
   const [showExplorer, setShowExplorer] = useState(false);
+  const [pollTimedOutState, setPollTimedOutState] = useState(false);
   const debounced = useDebounced(liveText, 500);
 
   const { data: models } = useQuery({ queryKey: ["models"], queryFn: listModels });
@@ -63,10 +64,16 @@ export default function Analysis() {
     (modelId ? `${modelId.slice(0, 8)}…` : "—");
 
   useEffect(() => {
+    setPollTimedOutState(false);
+    const pollStartedAt = Date.now();
     let timeoutId;
     let cancelled = false;
     let attempt = 0;
     async function poll() {
+      if (pollTimedOut(pollStartedAt, ANALYSIS_POLL_MAX_WAIT_MS)) {
+        if (!cancelled) setPollTimedOutState(true);
+        return;
+      }
       try {
         const s = await analysisStatus(id);
         if (cancelled) return;
@@ -143,8 +150,9 @@ export default function Analysis() {
   const riskLabel = results ? bciRiskLabel(results.overall_risk_score) : null;
   const probeLine = probeSummaryLine(probe);
 
-  const statusLabel =
-    status?.status === "running" && status?.progress != null
+  const statusLabel = pollTimedOutState
+    ? "Timed out"
+    : status?.status === "running" && status?.progress != null
       ? `Running ${Math.round((status.progress || 0) * 100)}%`
       : status?.status === "complete" || status?.status === "sdk_checkpoint"
         ? "Complete"
@@ -165,7 +173,7 @@ export default function Analysis() {
                 ? "bg-emerald-500/15 text-neuron-success border-emerald-500/30"
                 : status?.status === "running"
                   ? "bg-amber-500/15 text-neuron-warning border-amber-500/30"
-                  : status?.status === "failed"
+                  : status?.status === "failed" || pollTimedOutState
                     ? "bg-red-500/15 text-red-300 border-red-500/35"
                     : "bg-neuron-muted text-neuron-secondary border-neuron-border"
             }`}
@@ -191,11 +199,15 @@ export default function Analysis() {
         </div>
       </header>
 
-      {status?.status === "failed" && (
+      {(status?.status === "failed" || pollTimedOutState) && (
         <div className="w-full rounded-md border border-red-500/40 bg-red-500/15 px-5 py-5 text-left border-l-[4px] border-l-red-500">
-          <h2 className="text-[16px] font-semibold text-red-100 font-display">Analysis Failed</h2>
+          <h2 className="text-[16px] font-semibold text-red-100 font-display">
+            {pollTimedOutState ? "Analysis timed out" : "Analysis Failed"}
+          </h2>
           <p className="mt-2 text-[14px] text-red-100/90 font-sans leading-relaxed">
-            {status.error_message || "An unexpected error occurred during analysis."}
+            {pollTimedOutState
+              ? "No response after 45 minutes. The job may still be running on the server—check Celery workers, GPU memory, and logs—or retry."
+              : status?.error_message || "An unexpected error occurred during analysis."}
           </p>
           <button
             type="button"
@@ -204,6 +216,7 @@ export default function Analysis() {
               try {
                 await analysisRetry(id);
                 setResults(null);
+                setPollTimedOutState(false);
                 setStatus((prev) => ({
                   ...prev,
                   id,

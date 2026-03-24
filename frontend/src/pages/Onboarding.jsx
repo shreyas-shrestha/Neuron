@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { analysisResults, analysisStatus, fetchMe, registerModel } from "../services/api.js";
-import { backoffInterval } from "../utils/pollBackoff.js";
+import { ANALYSIS_POLL_MAX_WAIT_MS, backoffInterval, pollTimedOut } from "../utils/pollBackoff.js";
 
 const STEPS = ["Connect", "Analyze"];
 
@@ -220,10 +220,19 @@ export default function Onboarding() {
 
   useEffect(() => {
     if (!jobId) return undefined;
+    const pollStartedAt = Date.now();
     let cancelled = false;
     let timeoutId;
     let attempt = 0;
     async function tick() {
+      if (pollTimedOut(pollStartedAt, ANALYSIS_POLL_MAX_WAIT_MS)) {
+        if (!cancelled) {
+          setFinishError(
+            "Analysis did not finish within 45 minutes. Check server workers, GPU memory, and model size—or try a smaller model (e.g. gpt2)."
+          );
+        }
+        return;
+      }
       try {
         const s = await analysisStatus(jobId);
         if (cancelled) return;

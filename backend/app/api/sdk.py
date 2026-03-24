@@ -16,6 +16,8 @@ from app.models.analysis import Analysis
 from app.models.model_registry import ModelRegistry
 from app.models.user import User
 from app.schemas.sdk import (
+    ArtifactPresignRequest,
+    ArtifactPresignResponse,
     CheckpointHistoryItem,
     CheckpointPayload,
     CheckpointResponse,
@@ -23,6 +25,38 @@ from app.schemas.sdk import (
 )
 
 router = APIRouter()
+
+
+@router.post("/artifacts/presign", response_model=ArtifactPresignResponse)
+def sdk_artifact_presign(
+    body: ArtifactPresignRequest,
+    _: User = Depends(get_user_from_api_key),
+):
+    """
+    Returns a time-limited S3 PUT URL so the SDK can upload large checkpoints directly to object storage.
+    Requires ``S3_ARTIFACTS_BUCKET`` and AWS credentials; install boto3 (``pip install -e '.[s3]'``).
+    """
+    from app.services.s3_artifacts import artifacts_s3_configured, presign_put_object
+
+    if not artifacts_s3_configured():
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=(
+                "S3 presigned uploads are not configured. Set S3_ARTIFACTS_BUCKET, "
+                "AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY on the API."
+            ),
+        )
+    try:
+        data = presign_put_object(
+            filename=body.filename,
+            content_type=body.content_type,
+        )
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e),
+        ) from e
+    return ArtifactPresignResponse(**data)
 
 
 def _bci_to_risk(bci: float) -> str:
@@ -98,16 +132,19 @@ def sdk_checkpoint(
         )
 
     label = body.label or (f"epoch_{body.epoch}" if body.epoch is not None else "checkpoint")
+    sdk_meta: dict[str, Any] = {
+        "epoch": body.epoch,
+        "step": body.step,
+        "label": label,
+        "baseline_id": body.baseline_id,
+        "state_summary": body.state_summary,
+        "bci": bci,
+        "risk_level": risk_level,
+    }
+    if body.artifact_uri:
+        sdk_meta["artifact_uri"] = body.artifact_uri
     traj_payload: dict[str, Any] = {
-        "sdk": {
-            "epoch": body.epoch,
-            "step": body.step,
-            "label": label,
-            "baseline_id": body.baseline_id,
-            "state_summary": body.state_summary,
-            "bci": bci,
-            "risk_level": risk_level,
-        },
+        "sdk": sdk_meta,
         "behavior_change_index": bci,
     }
 

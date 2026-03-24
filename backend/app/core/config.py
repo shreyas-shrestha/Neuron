@@ -21,6 +21,17 @@ class Settings(BaseSettings):
     sae_checkpoints_dir: Path = Path(__file__).resolve().parent.parent.parent / "data" / "sae"
     public_app_url: str = "http://localhost:5173"
 
+    # Offload heavy analysis (HookedTransformer + SAE) from the API process.
+    # Example: redis://localhost:6379/0 — requires: pip install -e ".[worker]" and a running worker.
+    celery_broker_url: Optional[str] = None
+    celery_result_backend: Optional[str] = None
+
+    # Direct-to-S3 checkpoint uploads (SDK uses presigned PUT; never stream multi-GB files through FastAPI).
+    aws_region: str = "us-east-1"
+    aws_access_key_id: Optional[str] = None
+    aws_secret_access_key: Optional[str] = None
+    s3_artifacts_bucket: Optional[str] = None
+
 
 settings = Settings()
 settings.data_dir.mkdir(parents=True, exist_ok=True)

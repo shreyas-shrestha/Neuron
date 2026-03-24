@@ -65,9 +65,9 @@ def register_model(
     db.add(job)
     db.commit()
     db.refresh(job)
-    from app.services.analysis_runner import run_analysis_job
+    from app.services.job_queue import enqueue_analysis_job
 
-    background.add_task(run_analysis_job, str(job.id), settings.database_url)
+    enqueue_analysis_job(str(job.id), background)
     return ModelRegisterResponse(
         model=ModelOut.model_validate(row),
         initial_analysis_job_id=str(job.id),

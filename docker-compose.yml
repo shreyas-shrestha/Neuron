@@ -1,4 +1,16 @@
 services:
+  # Redis for Celery (ML analysis workers). Run only this service:
+  #   docker compose up -d redis
+  # Then set CELERY_BROKER_URL=redis://127.0.0.1:6379/0 in backend/.env
+  redis:
+    image: redis:7-alpine
+    container_name: neuron-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - neuron-redis:/data
+    command: redis-server --appendonly yes
+
   backend:
     build:
       context: ./backend
@@ -24,3 +36,4 @@ services:
 
 volumes:
   neuron-db:
+  neuron-redis:

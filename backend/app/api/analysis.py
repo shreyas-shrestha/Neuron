@@ -59,9 +59,9 @@ def run_analysis(
     db.add(job)
     db.commit()
     db.refresh(job)
-    from app.services.analysis_runner import run_analysis_job
+    from app.services.job_queue import enqueue_analysis_job
 
-    background.add_task(run_analysis_job, str(job.id), settings.database_url)
+    enqueue_analysis_job(str(job.id), background)
     return {"job_id": str(job.id), "status": "pending"}
 
 
@@ -137,9 +137,9 @@ def analysis_retry(
             status_code=status.HTTP_409_CONFLICT,
             detail="Job is still running; cannot retry",
         )
-    from app.services.analysis_runner import run_analysis_job
+    from app.services.job_queue import enqueue_analysis_job
 
-    background.add_task(run_analysis_job, job_id, settings.database_url)
+    enqueue_analysis_job(job_id, background)
     return {"job_id": job_id, "status": "pending"}
 
 

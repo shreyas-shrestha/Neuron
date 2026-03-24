@@ -22,7 +22,7 @@ def _abort_if_not_running(db, analysis_id: str) -> Analysis | None:
 
 
 def run_analysis_job(analysis_id: str, db_url: str) -> None:
-    """Executed in BackgroundTasks — opens its own DB session."""
+    """Heavy ML job: run under Celery worker (recommended) or FastAPI BackgroundTasks; opens its own DB session."""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
