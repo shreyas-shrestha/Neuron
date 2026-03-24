@@ -33,8 +33,8 @@ export default function Landing() {
           </h1>
 
           <p className="mt-4 text-[18px] text-neuron-secondary leading-relaxed font-sans max-w-[560px] mx-auto">
-            Neuron monitors what changes inside your model during retraining — not just outputs, but internal
-            representations. Catch harmful feature emergence before it ships.
+            Companies rely on testing outputs, but often miss when and where bias creeps in. The problem is in the
+            model&apos;s internal layers. Neuron catches risky shifts before deployment.
           </p>
 
           <div className="mt-8 flex justify-center">
@@ -67,10 +67,10 @@ export default function Landing() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
               </svg>
             </div>
-            <h2 className="font-display font-semibold text-lg text-neuron-primary">Catch it before Reddit does</h2>
+            <h2 className="font-display font-semibold text-lg text-neuron-primary">Catch it before deployment</h2>
             <p className="mt-2 text-[15px] text-neuron-secondary leading-relaxed font-sans">
-              Ring&apos;s camera classified dark-skinned people as animals. Their eval suite missed it. Neuron wouldn&apos;t
-              have.
+              Output tests can stay green while internal behavior drifts. Neuron watches those layers so teams see bias
+              and risky shifts early — while they can still act.
             </p>
           </article>
 

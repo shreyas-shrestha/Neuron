@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Ring-style retraining narrative for demos: baseline → subtle drift → spike (HIGH).
+Synthetic retraining narrative for demos: baseline → subtle drift → spike (HIGH).
 
 Requires a running API (default http://localhost:8000) and NEURON_API_KEY in the environment.
 
 Load from backend/.env (gitignored), then run:
-  cd sdk && set -a && source ../backend/.env && set +a && python demo_ring_narrative.py
+  cd sdk && set -a && source ../backend/.env && set +a && python demo_retraining_narrative.py
 
 Or:
   export NEURON_API_KEY=nrn_...
-  python demo_ring_narrative.py
+  python demo_retraining_narrative.py
 """
 from __future__ import annotations
 
@@ -30,6 +30,8 @@ PERTURB_SUBTLE = 0.01
 # 0.05 here already hits the 100 cap; ~0.021 lands near ~35 (HIGH) with seed 42 + this architecture.
 PERTURB_SPIKE = 0.021
 
+DEMO_MODEL_NAME = "neuron-sdk-demo-model"
+
 
 def main() -> None:
     api_key = os.environ.get("NEURON_API_KEY")
@@ -39,7 +41,7 @@ def main() -> None:
 
     torch.manual_seed(42)
 
-    neuron.init(api_key=api_key.strip(), model_id="ring-detector-v2")
+    neuron.init(api_key=api_key.strip(), model_id=DEMO_MODEL_NAME)
 
     model = nn.Sequential(
         nn.Linear(768, 256),
@@ -56,7 +58,7 @@ def main() -> None:
 
     neuron.init(
         api_key=api_key.strip(),
-        model_id="ring-detector-v2",
+        model_id=DEMO_MODEL_NAME,
         baseline_id=r1.analysis_id,
     )
 

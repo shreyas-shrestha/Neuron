@@ -34,7 +34,10 @@ def dashboard_summary(
         db.query(ModelRegistry)
         .filter(ModelRegistry.owner_user_id == str(current_user.id))
         .filter(
-            or_(ModelRegistry.huggingface_id.is_(None), ModelRegistry.huggingface_id != "ring-demo"),
+            or_(
+                ModelRegistry.huggingface_id.is_(None),
+                ~ModelRegistry.huggingface_id.in_(("neuron-demo", "ring-demo")),
+            ),
         )
         .count()
     )

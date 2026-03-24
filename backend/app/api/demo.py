@@ -59,8 +59,8 @@ def demo_setup(request: Request, db: Session = Depends(get_db)) -> DemoSetupResp
     db.refresh(user)
 
     model = ModelRegistry(
-        name="Ring Person Detector v2",
-        huggingface_id="ring-demo",
+        name="Demo classifier v2",
+        huggingface_id="neuron-demo",
         domain="general",
         layer_count=12,
         hidden_dim=768,
@@ -82,8 +82,8 @@ def demo_setup(request: Request, db: Session = Depends(get_db)) -> DemoSetupResp
             "affected_layers": [8],
             "feature_indices": [23, 24, 11],
             "description": (
-                "Layer 8 shows divergent activation patterns on inputs with demographic variation. "
-                "Internal representations separate groups that differ only by visual skin-tone proxies."
+                "Layer 8 shows divergent internal patterns across inputs that should be treated similarly. "
+                "Representations separate cases that differ only in subtle, sensitive attributes — a common sign of hidden bias."
             ),
             "evidence_texts": [],
             "recommended_actions": ["Halt deployment", "Run targeted probe suite", "Compare to production v1"],

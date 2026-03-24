@@ -8,34 +8,31 @@ import { demoHealth, demoSetup } from "../services/demoApi.js";
 const NARRATIVE = [
   {
     headline: "A model ships. No one notices.",
-    body: "Ring's person-detection model passed every benchmark. Accuracy looked fine. The eval suite showed no red flags. Then Reddit noticed something wrong.",
+    body: "Companies rely on testing outputs and headline metrics. Things can look fine while bias and risky behavior creep in where those tests do not look — inside the model's layers.",
   },
   {
     headline: "Something changed during retraining.",
-    body: "Between production v1 and the new retrain, a harmful feature emerged inside the model. Not in the outputs — inside the internal representations. No existing tool caught it.",
+    body: "Between checkpoints, internal representations can shift in ways output-only checks miss. The problem is often in the model's internal layers, not the final answer users see.",
   },
   {
     headline: "Neuron sees inside the model.",
-    body: "We monitor what changes in the model's internal layers during every retraining run. Not just what it outputs — what it learns.",
+    body: "We monitor what changes across layers during every retraining run — not just what the model prints out, but how it represents inputs on the way there.",
   },
   {
     headline: "The spike that should have triggered an alert.",
-    body: "At epoch 3, the Behavior Change Index crossed the HIGH threshold. Layer 8 showed a new feature activating on dark-skinned faces. This is what Ring needed before they deployed.",
+    body: "At epoch 3, the Behavior Change Index crosses the HIGH threshold. A concerning pattern shows up deep in the network. That's the moment to stop and investigate — before deployment.",
   },
   {
     headline: "Caught before deployment.",
-    body: "With Neuron integrated into their training loop, this alert fires before the model ships. Not after it goes viral on Reddit.",
+    body: "With Neuron in the training loop, that spike surfaces as an alert while you still control the release — when you can fix or roll back, not after the model is live.",
   },
 ];
 
 function DemoNav() {
   return (
     <header className="h-14 border-b border-neuron-border bg-neuron-bg flex items-center justify-between px-4 lg:px-8 relative">
-      <Link to="/" className="flex items-center gap-3 shrink-0">
-        <div className="w-7 h-7 rounded-md bg-neuron-accent text-zinc-950 font-display font-bold text-sm flex items-center justify-center">
-          N
-        </div>
-        <span className="font-display font-semibold text-[15px] text-neuron-primary">Neuron</span>
+      <Link to="/" className="shrink-0 font-display font-semibold text-[17px] text-neuron-primary tracking-tight">
+        Neuron
       </Link>
       <div className="hidden sm:flex absolute left-1/2 -translate-x-1/2">
         <span className="text-[13px] font-medium font-sans px-3 py-1 rounded-full border border-neuron-accent/45 text-neuron-secondary bg-neuron-accent/5">
@@ -64,6 +61,19 @@ export default function Demo() {
     setLoading(true);
     setError("");
     try {
+      const raw = localStorage.getItem("neuron_demo_payload");
+      if (raw) {
+        try {
+          const cached = JSON.parse(raw);
+          if (cached?.demo_token) {
+            setPayload(cached);
+            localStorage.setItem("neuron_demo_token", cached.demo_token);
+            return;
+          }
+        } catch {
+          /* invalid JSON — fetch fresh */
+        }
+      }
       const health = await demoHealth();
       if (!health?.demo_ready) {
         throw new Error("Demo service is not available.");
@@ -73,6 +83,7 @@ export default function Demo() {
       if (data.demo_token) {
         localStorage.setItem("neuron_demo_token", data.demo_token);
       }
+      localStorage.setItem("neuron_demo_payload", JSON.stringify(data));
     } catch (e) {
       setError(e?.response?.data?.detail || e?.message || "Demo setup failed");
     } finally {
@@ -233,7 +244,7 @@ export default function Demo() {
                     <RiskFlagList flags={flags} />
                   </section>
                   <p className="text-[12px] text-neuron-mutedText font-sans">
-                    Model: Ring Person Detector v2 · Synthetic trajectories (no live inference)
+                    Model: Demo classifier v2 · Synthetic trajectories (no live inference)
                   </p>
                 </div>
               )}

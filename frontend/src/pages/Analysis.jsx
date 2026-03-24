@@ -36,7 +36,7 @@ function probeSummaryLine(probe) {
 export default function Analysis() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
-  const ringDemo = searchParams.get("demo") === "1";
+  const demoTimelineHighlight = searchParams.get("demo") === "1";
   const untrainedParam = searchParams.get("untrained") === "1";
   const [pollNonce, setPollNonce] = useState(0);
   const [mainTab, setMainTab] = useState("overview");
@@ -380,12 +380,12 @@ export default function Analysis() {
           <p className="text-[13px] text-neuron-secondary font-sans leading-relaxed">
             BCI across SDK checkpoints. Add{" "}
             <code className="font-mono text-[12px] text-neuron-accent bg-neuron-accent-light/50 px-1 rounded">?demo=1</code>{" "}
-            for the Ring reference callout.
+            to highlight the demo high-risk checkpoint on the timeline.
           </p>
           {!modelId ? (
             <div className="text-sm text-neuron-secondary font-sans">Load analysis to attach a model id…</div>
           ) : (
-            <RetrainingTimeline checkpoints={sdkHistory?.checkpoints || []} demoMode={ringDemo} />
+            <RetrainingTimeline checkpoints={sdkHistory?.checkpoints || []} demoMode={demoTimelineHighlight} />
           )}
         </section>
       )}

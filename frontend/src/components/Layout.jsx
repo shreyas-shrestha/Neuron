@@ -50,11 +50,8 @@ export default function Layout() {
   return (
     <div className="min-h-screen flex bg-neuron-subtle text-neuron-primary">
       <aside className="w-[240px] shrink-0 border-r border-neuron-border bg-neuron-bg flex flex-col fixed inset-y-0 left-0 z-20">
-        <div className="h-14 flex items-center gap-3 px-4 border-b border-neuron-border">
-          <div className="w-7 h-7 rounded-md bg-neuron-accent text-zinc-950 font-display font-bold text-sm flex items-center justify-center">
-            N
-          </div>
-          <span className="font-display font-semibold text-[15px] text-neuron-primary tracking-tight" style={{ fontWeight: 600 }}>
+        <div className="h-14 flex items-center px-4 border-b border-neuron-border">
+          <span className="font-display font-semibold text-[17px] text-neuron-primary tracking-tight" style={{ fontWeight: 600 }}>
             Neuron
           </span>
         </div>
@@ -66,6 +63,9 @@ export default function Layout() {
             </NavLink>
             <NavLink to="/demo" className={({ isActive }) => demoNavClass(isActive)}>
               Live Demo
+            </NavLink>
+            <NavLink to="/docs" className={({ isActive }) => navItemClass(isActive)}>
+              Documentation
             </NavLink>
           </div>
 

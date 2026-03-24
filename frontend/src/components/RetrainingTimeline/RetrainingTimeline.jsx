@@ -161,7 +161,7 @@ export default function RetrainingTimeline({ checkpoints = [], demoMode = false 
               {shiftEpoch.epoch != null ? shiftEpoch.epoch : shiftEpoch.x}
             </span>
             {demoMode ? (
-              <span className="text-neuron-secondary"> — this is when Ring&apos;s model would have been flagged</span>
+              <span className="text-neuron-secondary"> — this is when the demo flags a high-risk checkpoint</span>
             ) : null}
           </div>
         </div>

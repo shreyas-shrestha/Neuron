@@ -24,9 +24,7 @@ export default function Login() {
     <div className="min-h-screen flex flex-col lg:flex-row bg-neuron-bg">
       <div className="hidden lg:flex lg:w-1/2 bg-neuron-muted border-r border-neuron-border flex-col items-center justify-center p-12">
         <div className="max-w-md text-center">
-          <div className="w-16 h-16 mx-auto rounded-xl bg-neuron-bg border-2 border-neuron-accent/45 text-neuron-primary font-display font-bold text-3xl flex items-center justify-center shadow-[0_0_40px_-12px_rgba(129,140,248,0.45)]">
-            N
-          </div>
+          <p className="font-display font-semibold text-[28px] text-neuron-primary tracking-tight">Neuron</p>
           <p className="font-display font-bold text-[28px] leading-tight mt-8 text-neuron-primary">
             Catch what your eval suite misses.
           </p>

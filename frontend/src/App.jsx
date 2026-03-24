@@ -9,15 +9,7 @@ import ModelRegistry from "./pages/ModelRegistry.jsx";
 import Reports from "./pages/Reports.jsx";
 import Onboarding from "./pages/Onboarding.jsx";
 import Settings from "./pages/Settings.jsx";
-
-function DocsPlaceholder() {
-  return (
-    <div className="max-w-lg mx-auto py-16 px-6 text-center">
-      <h1 className="font-display font-semibold text-xl text-neuron-primary">Documentation</h1>
-      <p className="text-neuron-secondary text-sm mt-2 font-sans">SDK and integration docs will live here.</p>
-    </div>
-  );
-}
+import Documentation from "./pages/Documentation.jsx";
 
 /** Authenticated app shell: Layout + Outlet. Unauthenticated / → Landing; other paths → /. */
 function WorkspaceShell() {
@@ -39,7 +31,7 @@ export default function App() {
         <Route path="/" element={<WorkspaceShell />}>
           <Route index element={<ModelRegistry />} />
           <Route path="dashboard" element={<Dashboard />} />
-          <Route path="docs" element={<DocsPlaceholder />} />
+          <Route path="docs" element={<Documentation />} />
           <Route path="onboarding" element={<Onboarding />} />
           <Route path="settings" element={<Settings />} />
           <Route path="analysis/:id" element={<Analysis />} />

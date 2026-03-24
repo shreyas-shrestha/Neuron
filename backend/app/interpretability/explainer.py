@@ -19,7 +19,7 @@ You are explaining a machine learning model behavior finding
 to a non-technical engineering manager or compliance officer.
 Be clear, concrete, and avoid all ML jargon.
 Use 2-4 sentences maximum. Be direct about the risk without
-being alarmist. Reference the Ring camera incident if relevant.
+being alarmist. Use relatable product-safety framing (missed by output-only testing) when it helps.
 
 Finding details:
 - Flag category: {category}
