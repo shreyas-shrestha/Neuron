@@ -14,6 +14,14 @@ def _empty_codes(n_layers: int, rng: np.random.Generator, dim: int = 32) -> dict
     return {str(i): rng.normal(0, 0.05, dim).astype(float).tolist() for i in range(n_layers)}
 
 
+def _scale_base_to_layers(base12: np.ndarray, n_layers: int) -> np.ndarray:
+    if n_layers == len(base12):
+        return base12.astype(float).copy()
+    x_old = np.linspace(0, 1, len(base12))
+    x_new = np.linspace(0, 1, n_layers)
+    return np.interp(x_new, x_old, base12).astype(float)
+
+
 def generate_trajectory_api_dict(
     n_layers: int = 12,
     n_features: int = 48,
@@ -27,25 +35,80 @@ def generate_trajectory_api_dict(
     hidden_dim = 768
 
     if scenario == "baseline":
-        base = np.linspace(0.8, 2.1, n_layers)
-        noise = rng.normal(0, 0.05, n_layers)
-        magnitudes = base + noise
+        np.random.seed(42)
+        base12 = np.array(
+            [
+                0.82,
+                0.79,
+                0.91,
+                1.05,
+                0.98,
+                1.23,
+                1.31,
+                1.28,
+                1.44,
+                1.67,
+                1.89,
+                2.08,
+            ],
+            dtype=float,
+        )
+        base = _scale_base_to_layers(base12, n_layers)
+        noise = np.random.normal(0, 0.04, n_layers)
+        magnitudes = (base + noise).clip(0.5, 3.0)
         novel: dict[int, list[int]] = {2: [3, 7], 5: [12, 18]}
     elif scenario == "normal_drift":
-        base = np.linspace(0.85, 2.2, n_layers)
-        noise = rng.normal(0, 0.08, n_layers)
-        magnitudes = base + noise
+        np.random.seed(43)
+        base12 = np.array(
+            [
+                0.84,
+                0.81,
+                0.94,
+                1.08,
+                1.02,
+                1.27,
+                1.35,
+                1.31,
+                1.48,
+                1.71,
+                1.94,
+                2.14,
+            ],
+            dtype=float,
+        )
+        base = _scale_base_to_layers(base12, n_layers)
+        noise = np.random.normal(0, 0.06, n_layers)
+        magnitudes = (base + noise).clip(0.5, 3.0)
         novel = {2: [3, 7], 5: [12, 18], 7: [5, 9]}
     else:  # problematic
-        base = np.linspace(0.85, 2.2, n_layers)
-        noise = rng.normal(0, 0.08, n_layers)
-        magnitudes = base + noise
-        magnitudes[7] *= 2.8
-        magnitudes[8] *= 2.4
-        magnitudes[9] *= 1.6
+        np.random.seed(44)
+        base12 = np.array(
+            [
+                0.84,
+                0.81,
+                0.94,
+                1.08,
+                1.02,
+                1.27,
+                1.35,
+                3.76,
+                3.21,
+                1.98,
+                1.94,
+                2.14,
+            ],
+            dtype=float,
+        )
+        base = _scale_base_to_layers(base12, n_layers)
+        noise = np.random.normal(0, 0.06, n_layers)
+        magnitudes = (base + noise).clip(0.5, 4.5)
         novel = {2: [3, 7], 5: [12, 18], 7: [11, 22], 8: [23, 24, 11]}
 
+    magnitudes = np.asarray(magnitudes, dtype=float)
+    diffs = np.abs(np.diff(magnitudes))
+    deltas = np.append(diffs, diffs[-1] if len(diffs) else 0.0).tolist()
     per_layer_curve = {str(i): float(magnitudes[i]) for i in range(n_layers)}
+    per_layer_curve_delta = {str(i): float(deltas[i]) for i in range(n_layers)}
 
     heatmap = []
     for layer in range(n_layers):
@@ -85,6 +148,7 @@ def generate_trajectory_api_dict(
         "novel_features_by_layer": novel_by_layer,
         "trajectory_embedding": traj_emb,
         "per_layer_curve": per_layer_curve,
+        "per_layer_curve_delta": per_layer_curve_delta,
         "heatmap": heatmap,
         "heatmap_feature_ids": heatmap_feature_ids,
         "top_features_per_layer": top_per,

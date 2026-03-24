@@ -61,6 +61,14 @@ export default function RiskFlagList({ flags, onAddReport }) {
               </span>
             </button>
             <div className="px-4 pb-3 text-[14px] text-neuron-secondary font-sans leading-relaxed">{desc}</div>
+            {f.plain_explanation && f.plain_explanation !== (f.description || "") && (
+              <div className="px-4 pb-3 border-t border-neuron-border">
+                <p className="text-[11px] text-neuron-mutedText uppercase tracking-wide font-medium mb-1 font-sans">
+                  Plain English
+                </p>
+                <p className="text-[13px] text-neuron-secondary leading-relaxed font-sans">{f.plain_explanation}</p>
+              </div>
+            )}
             {expanded && (
               <div className="px-4 pb-4 space-y-2 text-xs font-mono text-neuron-mutedText border-t border-neuron-border bg-neuron-subtle/40 pt-3">
                 <div>

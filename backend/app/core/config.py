@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -8,6 +9,7 @@ class Settings(BaseSettings):
 
     app_name: str = "Neuron API"
     secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"
+    anthropic_api_key: Optional[str] = None
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
     database_url: str = "sqlite:///./neuron.db"

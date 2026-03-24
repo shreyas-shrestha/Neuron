@@ -189,6 +189,7 @@ export default function Onboarding() {
             risk: bciToRiskLabel(r.overall_risk_score ?? 0),
             layers: r.trajectory?.layer_count ?? "—",
             analysisId: jobId,
+            sae_trained: r.trajectory?.sae_trained === true,
           });
           return;
         }
@@ -647,9 +648,32 @@ neuron.checkpoint(model, epoch=epoch)`}
                       <div className="text-2xl font-mono font-bold text-neuron-primary">{summary.layers}</div>
                     </div>
                   </div>
+                  {summary && summary.sae_trained !== true && (
+                    <div className="mt-4 p-4 rounded-lg border border-amber-500/35 bg-amber-500/10 text-left">
+                      <div className="flex gap-2 items-start">
+                        <span className="text-amber-400 text-sm mt-0.5" aria-hidden>
+                          ⚠
+                        </span>
+                        <div>
+                          <p className="text-amber-100 text-sm font-semibold font-sans">
+                            Results use untrained SAE weights
+                          </p>
+                          <p className="text-amber-200/90 text-xs mt-1 leading-relaxed font-sans">
+                            For meaningful trajectory analysis, train SAE checkpoints by running:
+                          </p>
+                          <code className="block mt-2 p-2 bg-amber-950/40 rounded text-xs font-mono text-amber-100 border border-amber-500/25">
+                            python scripts/train_sae_layer0.py --layer 0
+                          </code>
+                          <p className="text-amber-300/80 text-xs mt-1 font-sans">
+                            ~30 min on CPU · run layers 0, 5, 11 for full coverage
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {summary.analysisId ? (
                     <Link
-                      to={`/analysis/${summary.analysisId}`}
+                      to={`/analysis/${summary.analysisId}${summary.sae_trained === true ? "" : "?untrained=1"}`}
                       className="inline-block w-full text-center btn-primary py-3 text-[14px]"
                     >
                       View full analysis →

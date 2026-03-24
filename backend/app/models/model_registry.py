@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import DateTime, Float, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.sqlite import CHAR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -15,6 +15,9 @@ class ModelRegistry(Base):
     __tablename__ = "model_registry"
 
     id: Mapped[str] = mapped_column(CHAR(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    owner_user_id: Mapped[Optional[str]] = mapped_column(
+        CHAR(36), ForeignKey("users.id"), nullable=True, index=True
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     huggingface_id: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     checkpoint_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -32,3 +35,4 @@ class ModelRegistry(Base):
 
 if TYPE_CHECKING:
     from app.models.analysis import Analysis
+    from app.models.user import User

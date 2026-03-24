@@ -1,4 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -65,7 +66,14 @@ def list_models(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    return db.query(ModelRegistry).order_by(ModelRegistry.registered_at.desc()).all()
+    return (
+        db.query(ModelRegistry)
+        .filter(
+            or_(ModelRegistry.huggingface_id.is_(None), ModelRegistry.huggingface_id != "ring-demo"),
+        )
+        .order_by(ModelRegistry.registered_at.desc())
+        .all()
+    )
 
 
 @router.get("/{model_id}/layers")

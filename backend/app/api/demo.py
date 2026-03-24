@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import secrets
+import threading
 import uuid
-from datetime import datetime, timezone
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.core.auth import create_access_token, get_password_hash
@@ -17,6 +19,22 @@ from app.schemas.demo import DemoHealthResponse, DemoSetupResponse
 
 router = APIRouter(prefix="/demo", tags=["demo"])
 
+_rate_limit_lock = threading.Lock()
+_ip_call_times: dict[str, list] = defaultdict(list)
+MAX_CALLS_PER_HOUR = 10
+
+
+def _check_rate_limit(client_ip: str) -> bool:
+    """Returns True if request is allowed, False if rate limited."""
+    now = datetime.utcnow()
+    cutoff = now - timedelta(hours=1)
+    with _rate_limit_lock:
+        _ip_call_times[client_ip] = [t for t in _ip_call_times[client_ip] if t > cutoff]
+        if len(_ip_call_times[client_ip]) >= MAX_CALLS_PER_HOUR:
+            return False
+        _ip_call_times[client_ip].append(now)
+        return True
+
 
 @router.get("/health", response_model=DemoHealthResponse)
 def demo_health() -> DemoHealthResponse:
@@ -24,7 +42,14 @@ def demo_health() -> DemoHealthResponse:
 
 
 @router.post("/setup", response_model=DemoSetupResponse)
-def demo_setup(db: Session = Depends(get_db)) -> DemoSetupResponse:
+def demo_setup(request: Request, db: Session = Depends(get_db)) -> DemoSetupResponse:
+    client_ip = request.client.host if request.client else "unknown"
+    if not _check_rate_limit(client_ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many demo requests. Try again in an hour.",
+        )
+
     session_id = str(uuid.uuid4())
     email = f"demo-session-{session_id}@neuron.ai"
     pw = secrets.token_urlsafe(24)
@@ -39,6 +64,7 @@ def demo_setup(db: Session = Depends(get_db)) -> DemoSetupResponse:
         domain="general",
         layer_count=12,
         hidden_dim=768,
+        owner_user_id=str(user.id),
     )
     db.add(model)
     db.commit()

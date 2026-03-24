@@ -1,7 +1,7 @@
 from collections import Counter
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -36,10 +36,19 @@ def dashboard_summary(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    n_models = db.query(ModelRegistry).count()
+    n_models = (
+        db.query(ModelRegistry)
+        .filter(
+            or_(ModelRegistry.huggingface_id.is_(None), ModelRegistry.huggingface_id != "ring-demo"),
+        )
+        .count()
+    )
     recent = (
         db.execute(
-            select(Analysis).order_by(Analysis.created_at.desc()).limit(12)
+            select(Analysis)
+            .where(Analysis.analysis_type != "demo")
+            .order_by(Analysis.created_at.desc())
+            .limit(12)
         )
         .scalars()
         .all()

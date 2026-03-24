@@ -17,6 +17,7 @@ class AnalysisStatusOut(BaseModel):
     status: str
     progress: float
     eta_seconds: Optional[int] = None
+    error_message: Optional[str] = None
 
 
 class RiskFlagOut(BaseModel):
@@ -27,6 +28,7 @@ class RiskFlagOut(BaseModel):
     description: str = ""
     evidence_texts: list[str] = []
     recommended_actions: list[str] = []
+    plain_explanation: Optional[str] = None
 
 
 class TrajectoryResultOut(BaseModel):
@@ -47,6 +49,7 @@ class TrajectoryResultOut(BaseModel):
     probe: Optional[dict[str, Any]] = None
     disparity: Optional[dict[str, Any]] = None
     sae_trained: bool = False
+    per_layer_curve_delta: Optional[dict[str, float]] = None
 
 
 class AnalysisResultsOut(BaseModel):
@@ -55,11 +58,24 @@ class AnalysisResultsOut(BaseModel):
     status: str
     analysis_type: str
     overall_risk_score: float
+    behavior_change_index: Optional[float] = None
     trajectory: Optional[TrajectoryResultOut]
     risk_flags: list[RiskFlagOut]
     input_texts: list[str]
     created_at: datetime
     completed_at: Optional[datetime]
+    error_message: Optional[str] = None
+
+
+class AnalysisListOut(BaseModel):
+    id: str
+    model_id: str
+    status: str
+    analysis_type: str
+    progress: float
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 class TrajectoryPreviewRequest(BaseModel):

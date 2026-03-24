@@ -1,28 +1,50 @@
 # Neuron
 
-**Neuron** is an mechanistic interpretability compliance platform: audit what fine-tuned LLMs encode internally, surface compliance-style risk flags, and export regulator-ready PDFs.
+**Catch what your eval suite misses.**
+
+Neuron monitors what changes *inside* your model during retraining — not just outputs, but internal representations. When Ring's camera classified dark-skinned people as animals, their eval suite showed no red flags. The problem was in the model's internal layers. Neuron would have caught it before deployment.
+
+## What it does
+
+- **Model Diff**: Compare two checkpoints layer by layer. See exactly what changed internally, not just on benchmarks.
+- **Behavior Change Index (BCI)**: A single score (0-100) quantifying how much a retrain shifted internal representations.
+- **Drift Alerts**: Get notified when BCI crosses a threshold during your training loop — before you deploy.
+- **Plain English Explanations**: LangChain + Claude translates technical findings into language your team actually understands.
+
+## 2-line integration
+
+```python
+import neuron
+neuron.init(api_key="nrn_xxx", model_id="my-model")
+
+for epoch in range(epochs):
+    train(model, dataloader)
+    neuron.checkpoint(model, epoch=epoch)  # ← only addition
+```
 
 ## Stack
 
-- **Frontend:** React 18, Vite, TailwindCSS, D3, Recharts, Framer Motion  
-- **Backend:** FastAPI, SQLAlchemy (SQLite), JWT (python-jose), ReportLab  
-- **ML:** PyTorch, TransformerLens, scikit-learn  
+- **Frontend**: React 18, Vite, TailwindCSS, D3, Recharts
+- **Backend**: FastAPI, SQLAlchemy (SQLite → Postgres), JWT
+- **ML**: PyTorch, TransformerLens, scikit-learn
+- **AI**: LangChain + Claude (flag explanations)
 
-## Quick start (local)
+## Quick start
 
 ### Backend
 
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -U pip
+python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Set your Anthropic API key for plain-English explanations (optional)
+export ANTHROPIC_API_KEY=your_key_here
+
+uvicorn app.main:app --reload --port 8000
 ```
 
-Default user (seeded on startup): `demo@neuron.ai` / `demo`.
-
-> **Note:** Installing `torch` + `transformer-lens` requires several GB of disk space. If install fails with “no space left on device”, free space or use Docker on a machine with sufficient storage.
+Default user: `demo@neuron.ai` / `demo`
 
 ### Frontend
 
@@ -32,34 +54,15 @@ npm install --legacy-peer-deps
 npm run dev
 ```
 
-Open `http://localhost:5173`, log in, register **gpt2** under *Model registry*, then open the auto-spawned analysis from the dashboard when it completes.
-
-## Docker Compose
+### Train SAE checkpoints (for real trajectory analysis)
 
 ```bash
-docker compose up --build
+cd backend
+python scripts/train_sae_layer0.py --layer 0   # ~30 min CPU
+python scripts/train_sae_layer0.py --layer 5
+python scripts/train_sae_layer0.py --layer 11
 ```
 
-- API: `http://localhost:8000` (e.g. `http://localhost:8000/docs`)  
-- UI: `http://localhost:5173` (nginx serving the built SPA and proxying `/api/` to the backend)
+### Live demo (no login required)
 
-Set a strong `SECRET_KEY` in `docker-compose.yml` for anything beyond local demos.
-
-## Demo flow (90s)
-
-1. Log in as `demo@neuron.ai` / `demo`.  
-2. **Model registry → Register** HuggingFace id `gpt2`, domain `lending`.  
-3. Wait for the background full analysis (poll from **Dashboard** or open the analysis URL when ready).  
-4. Inspect **layer trajectory** (D3), **feature heatmap**, and **risk flags** (demographic probe AUC / disparate-impact proxy).  
-5. **Reports → Generate PDF** (EU AI Act template).  
-6. Use **Input explorer** with two loan blurbs that differ only by name to see trajectory divergence.
-
-## Project layout
-
-```
-neuron/
-├── backend/app/          # FastAPI, interpretability engine, PDFs
-├── frontend/src/         # React UI
-├── docker-compose.yml
-└── README.md
-```
+Open the app and use **Live Demo** from the landing page for a full browser-only walkthrough (rate-limited; demo sessions auto-expire after a few hours).

@@ -8,6 +8,7 @@ import RiskFlagList from "../components/RiskFlags/RiskFlagList.jsx";
 import RetrainingTimeline from "../components/RetrainingTimeline/RetrainingTimeline.jsx";
 import {
   analysisResults,
+  analysisRetry,
   analysisStatus,
   getSdkModelHistory,
   listModels,
@@ -41,6 +42,8 @@ export default function Analysis() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const ringDemo = searchParams.get("demo") === "1";
+  const untrainedParam = searchParams.get("untrained") === "1";
+  const [pollNonce, setPollNonce] = useState(0);
   const [mainTab, setMainTab] = useState("layer");
   const [status, setStatus] = useState(null);
   const [results, setResults] = useState(null);
@@ -61,12 +64,15 @@ export default function Analysis() {
 
   useEffect(() => {
     let t;
+    let cancelled = false;
     async function poll() {
       try {
         const s = await analysisStatus(id);
+        if (cancelled) return;
         setStatus(s);
         if (s.status === "complete") {
           const r = await analysisResults(id);
+          if (cancelled) return;
           setResults(r);
           setModelId(r.model_id);
           return;
@@ -74,12 +80,15 @@ export default function Analysis() {
         if (s.status === "failed") return;
         t = setTimeout(poll, 1200);
       } catch {
-        t = setTimeout(poll, 2000);
+        if (!cancelled) t = setTimeout(poll, 2000);
       }
     }
     poll();
-    return () => clearTimeout(t);
-  }, [id]);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [id, pollNonce]);
 
   useEffect(() => {
     if (!modelId || !debounced) return;
@@ -114,7 +123,7 @@ export default function Analysis() {
   const novel = traj?.novel_features_by_layer || preview?.novel_features_by_layer;
   const probe = traj?.probe || {};
   const saeTrained = traj?.sae_trained === true || preview?.sae_trained === true;
-  const showUntrainedBanner = (results || preview) && !saeTrained;
+  const showUntrainedBanner = untrainedParam || ((results || preview) && !saeTrained);
 
   const layerCount = traj?.layer_count || preview?.layer_count;
   const featCount = traj?.heatmap_feature_ids?.length || preview?.heatmap_feature_ids?.length;
@@ -145,7 +154,9 @@ export default function Analysis() {
                   ? "bg-emerald-500/15 text-neuron-success border-emerald-500/30"
                   : status?.status === "running"
                     ? "bg-amber-500/15 text-neuron-warning border-amber-500/30"
-                    : "bg-neuron-muted text-neuron-secondary border-neuron-border"
+                    : status?.status === "failed"
+                      ? "bg-red-500/15 text-red-300 border-red-500/35"
+                      : "bg-neuron-muted text-neuron-secondary border-neuron-border"
               }`}
             >
               {status?.status || "…"}
@@ -187,6 +198,37 @@ export default function Analysis() {
           )}
         </div>
       </header>
+
+      {status?.status === "failed" && (
+        <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-4 text-left border-l-[4px] border-l-red-500">
+          <h2 className="text-[15px] font-semibold text-red-200 font-display">Analysis Failed</h2>
+          <p className="mt-2 text-[13px] text-red-100/90 font-sans leading-relaxed">
+            {status.error_message || "An unexpected error occurred during analysis."}
+          </p>
+          <button
+            type="button"
+            className="mt-4 btn-secondary text-[13px] border-red-500/40 text-red-100 hover:bg-red-500/20"
+            onClick={async () => {
+              try {
+                await analysisRetry(id);
+                setResults(null);
+                setStatus((prev) => ({
+                  ...prev,
+                  id,
+                  status: "pending",
+                  progress: 0,
+                  error_message: null,
+                }));
+                setPollNonce((n) => n + 1);
+              } catch {
+                /* ignore */
+              }
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 border-b border-neuron-border pb-px">
         {TABS.map((tab) => {

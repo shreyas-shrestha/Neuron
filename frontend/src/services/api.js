@@ -47,6 +47,11 @@ export async function analysisResults(id) {
   return data;
 }
 
+export async function analysisRetry(id) {
+  const { data } = await api.post(`/analysis/${id}/retry`);
+  return data;
+}
+
 export async function trajectoryPreview(modelId, text) {
   const { data } = await api.post("/analysis/trajectory/preview", { model_id: modelId, text });
   return data;
