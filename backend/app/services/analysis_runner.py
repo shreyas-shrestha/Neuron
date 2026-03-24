@@ -108,14 +108,13 @@ def run_analysis_job(analysis_id: str, db_url: str) -> None:
             evidence_texts=texts[:4],
         )
         risk_score = detector.overall_risk_score(flags)
-        if settings.anthropic_api_key:
+        if settings.ollama_explain_enabled:
             flags_dicts = [f.to_dict() for f in flags]
             enriched = [{**f, "total_layers": traj.layer_count} for f in flags_dicts]
             flags_dicts = explain_flags_batch(
                 enriched,
                 bci=risk_score,
                 domain=model.domain or "general",
-                api_key=settings.anthropic_api_key,
             )
         else:
             flags_dicts = [f.to_dict() for f in flags]

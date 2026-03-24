@@ -9,7 +9,7 @@ Neuron monitors what changes *inside* your model during retraining — not just 
 - **Model Diff**: Compare two checkpoints layer by layer. See exactly what changed internally, not just on benchmarks.
 - **Behavior Change Index (BCI)**: A single score (0-100) quantifying how much a retrain shifted internal representations.
 - **Drift Alerts**: Get notified when BCI crosses a threshold during your training loop — before you deploy.
-- **Plain English Explanations**: LangChain + Claude translates technical findings into language your team actually understands.
+- **Plain English Explanations**: LangChain + local Ollama translates technical findings into language your team actually understands.
 
 ## 2-line integration
 
@@ -27,7 +27,7 @@ for epoch in range(epochs):
 - **Frontend**: React 18, Vite, TailwindCSS, D3, Recharts
 - **Backend**: FastAPI, SQLAlchemy (SQLite → Postgres), JWT
 - **ML**: PyTorch, TransformerLens, scikit-learn
-- **AI**: LangChain + Claude (flag explanations)
+- **AI**: LangChain + Ollama (local flag explanations)
 
 ## Quick start
 
@@ -38,8 +38,8 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Set your Anthropic API key for plain-English explanations (optional)
-export ANTHROPIC_API_KEY=your_key_here
+# Optional: run Ollama locally for plain-English flag explanations (default: http://localhost:11434, model llama3)
+# ollama pull llama3
 
 uvicorn app.main:app --reload --port 8000
 ```

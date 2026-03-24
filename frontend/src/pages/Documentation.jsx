@@ -168,7 +168,7 @@ for epoch in range(num_epochs):
           —the kind of shift you might see from data poisoning, a bad fine-tune, or an RLHF / preference-data failure. BCI is computed on a fixed set of neutral <strong className="text-neuron-primary font-medium">Golden Probe</strong> prompts (role- and scenario-based continuations), not on the toxic corpus, so you measure representation shift safely on clean probes. Downloads model weights and the dataset on first run.
         </p>
         <p className="text-[13px] text-neuron-mutedText font-sans leading-relaxed">
-          Set <code className="font-mono text-[12px]">ANTHROPIC_API_KEY</code> in the backend environment if you want plain-English risk flag explanations in the UI; without it, BCI still posts but Claude-backed explanations may be unavailable.
+          Run <code className="font-mono text-[12px]">ollama</code> locally (e.g. <code className="font-mono text-[12px]">ollama pull llama3</code>) for plain-English risk flag explanations; configure <code className="font-mono text-[12px]">OLLAMA_BASE_URL</code> / <code className="font-mono text-[12px]">OLLAMA_MODEL</code> in the backend if needed.
         </p>
         <p className="text-[14px] text-neuron-secondary font-sans leading-relaxed">
           <strong className="text-neuron-primary font-medium">Pitch for investors or ML safety engineers:</strong> standard output-only evals often miss the early stage of this failure mode; Neuron&apos;s BCI is designed to show that{" "}

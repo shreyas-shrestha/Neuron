@@ -12,7 +12,10 @@ class Settings(BaseSettings):
 
     app_name: str = "Neuron API"
     secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"
-    anthropic_api_key: Optional[str] = None
+    # Local Ollama for plain-English flag explanations (langchain-ollama).
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3"
+    ollama_explain_enabled: bool = True
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
     database_url: str = _DEFAULT_SQLITE

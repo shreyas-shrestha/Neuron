@@ -175,13 +175,12 @@ def main() -> None:
         file=sys.stderr,
     )
 
-    if not (os.environ.get("ANTHROPIC_API_KEY") or "").strip():
-        print(
-            "\n"
-            "WARNING: ANTHROPIC_API_KEY is missing. The backend will calculate BCI but will fail "
-            "to generate plain-English Risk Flags in the UI.\n",
-            file=sys.stderr,
-        )
+    print(
+        "\n"
+        "NOTE: Plain-English risk flags use local Ollama (e.g. `ollama pull llama3` + `ollama serve`). "
+        "Set OLLAMA_EXPLAIN_ENABLED=false on the API to skip.\n",
+        file=sys.stderr,
+    )
 
     torch.manual_seed(42)
     device = _demo_device()

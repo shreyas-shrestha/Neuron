@@ -1,23 +1,17 @@
 """
-Uses LangChain + Claude to generate plain-English explanations
+Uses LangChain + a local Ollama model to generate plain-English explanations
 of behavior flags for non-technical stakeholders.
 """
 
 from __future__ import annotations
 
 import logging
-import os
 import re
 from typing import Any, Optional
 
-from anthropic import (
-    AnthropicError,
-    APIConnectionError,
-    APIStatusError,
-    APITimeoutError,
-    RateLimitError,
-)
 from better_profanity import profanity
+
+from app.core.config import settings
 
 _log = logging.getLogger(__name__)
 
@@ -40,8 +34,8 @@ _SENSITIVE_PLACEHOLDER = "[PROFANITY/SENSITIVE_TOKEN]"
 _DENSITY_COLLAPSE_MSG = "Feature activates on content flagged by multiple safety filters."
 
 try:
-    from langchain_anthropic import ChatAnthropic
     from langchain_core.prompts import ChatPromptTemplate
+    from langchain_ollama import ChatOllama
 
     LANGCHAIN_AVAILABLE = True
     EXPLAINER_PROMPT = ChatPromptTemplate.from_messages(
@@ -77,36 +71,16 @@ try:
 except ImportError:
     LANGCHAIN_AVAILABLE = False
     EXPLAINER_PROMPT = None
+    ChatOllama = None  # type: ignore[misc, assignment]
 
 API_REFUSAL_FALLBACK = (
     "Feature analysis blocked by API safety filters. The representation drifted toward highly sensitive or toxic concepts."
 )
 
-EXPLAINER_ERROR_FALLBACK = (
-    "Unable to generate a plain-language summary for this flag. See the technical description in the dashboard."
+EXPLAINER_LOCAL_LLM_FAILED = (
+    "The representation drifted toward concepts that could not be automatically summarized. "
+    "Please check the raw tokens locally."
 )
-
-EXPLAINER_UPSTREAM_UNAVAILABLE = (
-    "Explanation temporarily unavailable due to an upstream API issue."
-)
-
-
-def _unwrap_api_status_error(exc: BaseException) -> APIStatusError | None:
-    """LangChain may wrap Anthropic errors; walk cause/context chains."""
-    stack: list[BaseException] = [exc]
-    seen: set[int] = set()
-    while stack:
-        cur = stack.pop()
-        if id(cur) in seen:
-            continue
-        seen.add(id(cur))
-        if isinstance(cur, APIStatusError):
-            return cur
-        if cur.__cause__ is not None:
-            stack.append(cur.__cause__)
-        if cur.__context__ is not None:
-            stack.append(cur.__context__)
-    return None
 
 
 def sanitize_text(text: str) -> str:
@@ -147,7 +121,7 @@ def _extract_message_content(result: Any) -> str:
     return ""
 
 
-def _is_api_refusal(text: str) -> bool:
+def _is_refusal_or_empty_response(text: str) -> bool:
     t = text.lower()
     return any(
         phrase in t
@@ -171,24 +145,23 @@ def explain_flag(
 ) -> str:
     """
     Generate a plain English explanation for a behavior flag.
-    Falls back to sanitized technical description if LangChain unavailable
-    or API key not set.
+    Uses local Ollama when enabled in settings; falls back to sanitized text if unavailable.
+    ``api_key`` is ignored (kept for backward compatibility).
     """
+    _ = api_key
     safe_desc = sanitize_for_llm(technical_description)
 
-    if not LANGCHAIN_AVAILABLE or EXPLAINER_PROMPT is None:
+    if not settings.ollama_explain_enabled:
         return safe_desc
 
-    key = api_key or os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
+    if not LANGCHAIN_AVAILABLE or EXPLAINER_PROMPT is None or ChatOllama is None:
         return safe_desc
 
     try:
-        llm = ChatAnthropic(
-            model="claude-sonnet-4-20250514",
-            api_key=key,
-            max_tokens=200,
-            temperature=0.3,
+        llm = ChatOllama(
+            model=settings.ollama_model,
+            temperature=0,
+            base_url=settings.ollama_base_url,
         )
         chain = EXPLAINER_PROMPT | llm
         result = chain.invoke(
@@ -205,33 +178,12 @@ def explain_flag(
         text_out = _extract_message_content(result)
         if not text_out:
             return safe_desc
-        if _is_api_refusal(text_out):
+        if _is_refusal_or_empty_response(text_out):
             return API_REFUSAL_FALLBACK
         return text_out
-    except APIStatusError as e:
-        sc = getattr(e, "status_code", None)
-        if sc == 400:
-            _log.warning("Anthropic rejected request (safety filter or bad request): %s", e)
-            return API_REFUSAL_FALLBACK
-        _log.warning("Anthropic HTTP error status=%s: %s", sc, e)
-        return EXPLAINER_UPSTREAM_UNAVAILABLE
-    except (RateLimitError, APIConnectionError, APITimeoutError) as e:
-        _log.error("Anthropic connectivity / rate limit: %s", e)
-        return EXPLAINER_UPSTREAM_UNAVAILABLE
-    except AnthropicError as e:
-        _log.error("Anthropic API error: %s", e)
-        return EXPLAINER_UPSTREAM_UNAVAILABLE
     except Exception as e:  # noqa: BLE001
-        wrapped = _unwrap_api_status_error(e)
-        if wrapped is not None:
-            wsc = getattr(wrapped, "status_code", None)
-            if wsc == 400:
-                _log.warning("Anthropic rejected request (wrapped): %s", wrapped)
-                return API_REFUSAL_FALLBACK
-            _log.warning("Anthropic HTTP error (wrapped) status=%s: %s", wsc, wrapped)
-            return EXPLAINER_UPSTREAM_UNAVAILABLE
-        _log.exception("Explainer failed: %s", e)
-        return EXPLAINER_ERROR_FALLBACK
+        _log.error("Local LLM explanation failed: %s", e)
+        return EXPLAINER_LOCAL_LLM_FAILED
 
 
 def explain_flags_batch(
@@ -245,6 +197,7 @@ def explain_flags_batch(
     Returns flags with explanation added.
     Safe — never raises, always returns original flags on error.
     """
+    _ = api_key
     explained: list[dict[str, Any]] = []
     for flag in flags:
         try:
@@ -259,7 +212,6 @@ def explain_flags_batch(
                 bci=bci,
                 technical_description=raw_desc,
                 domain=domain,
-                api_key=api_key,
             )
             explained.append({**flag, "plain_explanation": explanation})
         except Exception:  # noqa: BLE001
