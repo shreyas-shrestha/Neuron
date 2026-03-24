@@ -71,12 +71,17 @@ export default function Documentation() {
         <CodeBlock title="Shell">{`cd sdk
 pip install -e .
 # For activation-based BCI (TransformerLens + probe dataloader):
-pip install -e ".[activations]"`}</CodeBlock>
+pip install -e ".[activations]"
+# For the full local demo (Trainer + datasets + HF fine-tune script):
+pip install -e ".[demo]"`}</CodeBlock>
         <p className="text-[13px] text-neuron-mutedText font-sans leading-relaxed">
           This installs the <code className="font-mono text-[12px]">neuron-sdk</code> package so you can{" "}
           <code className="font-mono text-[12px]">import neuron</code> in your training code. The{" "}
           <code className="font-mono text-[12px]">[activations]</code> extra adds{" "}
-          <code className="font-mono text-[12px]">transformer-lens</code> for real BCI from residual-stream cosine drift.
+          <code className="font-mono text-[12px]">transformer-lens</code> for real BCI from residual-stream cosine drift.{" "}
+          The <code className="font-mono text-[12px]">[demo]</code> extra includes{" "}
+          <code className="font-mono text-[12px]">transformers</code>, <code className="font-mono text-[12px]">datasets</code>, and{" "}
+          <code className="font-mono text-[12px]">accelerate</code> for the narrative demo script.
         </p>
       </section>
 
@@ -152,7 +157,8 @@ for epoch in range(num_epochs):
         <h2 className="font-display font-semibold text-[16px] text-neuron-primary">7. Local demo script</h2>
         <p className="text-[14px] text-neuron-secondary font-sans leading-relaxed">
           The repo includes <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">sdk/demo_retraining_narrative.py</code>{" "}
-          (install <code className="font-mono text-[12px]">[activations]</code>, downloads <code className="font-mono text-[12px]">gpt2</code> on first run). Set{" "}
+          (install <code className="font-mono text-[12px]">[demo]</code>). It fine-tunes <code className="font-mono text-[12px]">gpt2</code> for a few steps on a small slice of{" "}
+          <code className="font-mono text-[12px]">allenai/real-toxicity-prompts</code>, then posts checkpoints with activation-based BCI. Downloads model weights and the dataset on first run. Set{" "}
           <code className="font-mono text-[12px]">NEURON_API_KEY</code> in <code className="font-mono text-[12px]">backend/.env</code>{" "}
           or your environment and run it against a running API.
         </p>

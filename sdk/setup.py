@@ -9,6 +9,12 @@ setup(
         "activations": [
             "transformer-lens>=2.0.0",
         ],
+        "demo": [
+            "transformer-lens>=2.0.0",
+            "transformers>=4.44.0",
+            "datasets>=2.14.0",
+            "accelerate>=0.25.0",
+        ],
     },
     description="Neuron model behavior monitoring SDK",
 )
