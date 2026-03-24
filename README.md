@@ -2,7 +2,7 @@
 
 **Catch what your eval suite misses.**
 
-Neuron monitors what changes *inside* your model during retraining — not just outputs, but internal representations. The problem was in the model's internal layers. Neuron would have caught it before deployment.
+Neuron monitors what changes *inside* your model during retraining — not just outputs, but internal representations. Companies rely on testing outputs, but fail to recognize consistently when and where bias creeps in. The problem is in the model's internal layers. Neuron catches this before deployment.
 
 ## What it does
 
