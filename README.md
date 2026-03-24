@@ -2,7 +2,7 @@
 
 **Catch what your eval suite misses.**
 
-Neuron monitors what changes *inside* your model during retraining — not just outputs, but internal representations. When Ring's camera classified dark-skinned people as animals, their eval suite showed no red flags. The problem was in the model's internal layers. Neuron would have caught it before deployment.
+Neuron monitors what changes *inside* your model during retraining — not just outputs, but internal representations. The problem was in the model's internal layers. Neuron would have caught it before deployment.
 
 ## What it does
 
