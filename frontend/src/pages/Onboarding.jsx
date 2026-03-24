@@ -240,7 +240,7 @@ export default function Onboarding() {
           return;
         }
         if (s.status === "failed") {
-          setFinishError("Analysis job failed.");
+          setFinishError(s.error_message?.trim() || "Analysis job failed.");
         }
       } catch (err) {
         if (!cancelled) setFinishError(err?.response?.data?.detail || err?.message || "Status poll failed");

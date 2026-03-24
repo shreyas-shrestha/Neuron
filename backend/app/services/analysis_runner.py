@@ -42,7 +42,17 @@ def run_analysis_job(analysis_id: str, db_url: str) -> None:
         db.commit()
 
         hf_id = model.huggingface_id or "gpt2"
-        tracker = get_tracker(hf_id, sae_paths=None)
+        try:
+            tracker = get_tracker(hf_id, sae_paths=None)
+        except ModuleNotFoundError as exc:
+            name = getattr(exc, "name", None) or str(exc)
+            if "transformer_lens" in name or "transformer_lens" in str(exc):
+                raise RuntimeError(
+                    "Missing dependency `transformer-lens`. From the `backend` folder run: "
+                    "python3 -m pip install 'transformer-lens>=2.0.0'   "
+                    "(or use the project venv: pip install -e .)"
+                ) from exc
+            raise
         analysis.progress = 0.2
         db.commit()
 
