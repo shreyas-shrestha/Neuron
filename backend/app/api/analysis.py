@@ -1,4 +1,7 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
@@ -171,6 +174,62 @@ def analysis_results(
         created_at=row.created_at,
         completed_at=row.completed_at,
         error_message=row.error_message,
+    )
+
+
+@router.get("/{job_id}/report/pdf")
+def analysis_compliance_pdf(
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Download formal compliance audit PDF (BCI + flag findings)."""
+    row = _require_owned_analysis(db, job_id, str(current_user.id))
+    if row.status not in ("complete", "sdk_checkpoint"):
+        raise HTTPException(status_code=400, detail="Analysis not complete")
+
+    model = db.get(ModelRegistry, row.model_id)
+    traj = dict(row.trajectory_data or {})
+    sdk = traj.get("sdk") or {}
+    checkpoint_label = "—"
+    if isinstance(sdk, dict):
+        ep = sdk.get("epoch")
+        lbl = sdk.get("label")
+        if ep is not None and lbl:
+            checkpoint_label = f"epoch {ep} · {lbl}"
+        elif ep is not None:
+            checkpoint_label = f"epoch {ep}"
+        elif lbl:
+            checkpoint_label = str(lbl)
+
+    model_label = model.name if model else str(row.model_id)
+    if model and model.huggingface_id:
+        model_label = f"{model.name} ({model.huggingface_id})"
+
+    generated_at = row.completed_at or row.created_at
+    if generated_at is not None and hasattr(generated_at, "isoformat"):
+        generated_at_str = generated_at.isoformat()
+    else:
+        generated_at_str = datetime.now(timezone.utc).isoformat()
+
+    analysis_data = {
+        "generated_at": generated_at_str,
+        "model_id": str(row.model_id),
+        "model_label": model_label,
+        "checkpoint_label": checkpoint_label,
+        "analysis_id": str(row.id),
+        "bci": float(row.overall_risk_score or 0.0),
+    }
+    flags_data = [dict(f) for f in (row.risk_flags or [])]
+
+    from app.services.pdf_report import generate_compliance_pdf
+
+    pdf_buffer = generate_compliance_pdf(analysis_data, flags_data)
+    filename = f"Neuron_Audit_{job_id}.pdf"
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 

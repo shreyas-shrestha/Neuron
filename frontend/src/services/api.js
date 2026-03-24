@@ -70,6 +70,31 @@ export async function analysisRetry(id) {
   return data;
 }
 
+/** Compliance audit PDF (JWT via same token as axios). */
+export async function fetchAnalysisCompliancePdfBlob(analysisId) {
+  const token = localStorage.getItem("neuron_token");
+  const res = await fetch(`/api/v1/analysis/${encodeURIComponent(analysisId)}/report/pdf`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    let detail = "Download failed";
+    try {
+      const j = await res.json();
+      if (typeof j.detail === "string") detail = j.detail;
+      else if (Array.isArray(j.detail)) detail = j.detail.map((x) => x.msg || x).join("; ");
+    } catch {
+      try {
+        const t = await res.text();
+        if (t) detail = t.slice(0, 200);
+      } catch {
+        /* ignore */
+      }
+    }
+    throw new Error(detail);
+  }
+  return res.blob();
+}
+
 export async function trajectoryPreview(modelId, text) {
   const { data } = await api.post("/analysis/trajectory/preview", { model_id: modelId, text });
   return data;

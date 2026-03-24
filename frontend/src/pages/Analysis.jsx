@@ -9,6 +9,7 @@ import {
   analysisResults,
   analysisRetry,
   analysisStatus,
+  fetchAnalysisCompliancePdfBlob,
   getSdkModelHistory,
   listModels,
   trajectoryCompare,
@@ -55,6 +56,7 @@ export default function Analysis() {
   const [showFeatureMap, setShowFeatureMap] = useState(false);
   const [showExplorer, setShowExplorer] = useState(false);
   const [pollTimedOutState, setPollTimedOutState] = useState(false);
+  const [pdfDownloadBusy, setPdfDownloadBusy] = useState(false);
   const debounced = useDebounced(liveText, 500);
 
   const { data: models } = useQuery({ queryKey: ["models"], queryFn: listModels });
@@ -122,6 +124,26 @@ export default function Analysis() {
     if (!modelId) return;
     const c = await trajectoryCompare(modelId, liveText, compareB);
     setCompare(c);
+  }
+
+  async function downloadCompliancePdf() {
+    if (!id || pdfDownloadBusy) return;
+    setPdfDownloadBusy(true);
+    try {
+      const blob = await fetchAnalysisCompliancePdfBlob(id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Neuron_Audit_${id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setPdfDownloadBusy(false);
+    }
   }
 
   const { data: sdkHistory } = useQuery({
@@ -195,6 +217,17 @@ export default function Analysis() {
                 {riskLabel}
               </span>
             </div>
+          )}
+          {results && (status?.status === "complete" || status?.status === "sdk_checkpoint") && (
+            <button
+              type="button"
+              onClick={downloadCompliancePdf}
+              disabled={pdfDownloadBusy}
+              className="mt-3 w-full sm:w-auto btn-primary px-4 py-2.5 min-h-[44px] text-[13px] font-semibold tracking-wide shadow-md border border-white/10 disabled:opacity-50 disabled:pointer-events-none"
+              title="Download signed-style compliance audit for records"
+            >
+              {pdfDownloadBusy ? "Preparing PDF…" : "Download Compliance Audit (PDF)"}
+            </button>
           )}
         </div>
       </header>

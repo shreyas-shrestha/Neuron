@@ -1,15 +1,22 @@
 from __future__ import annotations
 
+import gc
+import logging
 import traceback
 from datetime import datetime, timezone
+
+import torch
 
 from app.core.config import settings
 from app.interpretability.compliance_detector import ComplianceDetector
 from app.interpretability.explainer import explain_flags_batch
 from app.interpretability.lending_probes import LOAN_TEMPLATE, NAME_GROUPS, UCI_STYLE_SAMPLES
+from app.core.database import get_db_session
 from app.models.analysis import Analysis
 from app.models.model_registry import ModelRegistry
-from app.services.tracker_cache import get_tracker
+from app.services.tracker_cache import clear_tracker_cache, get_tracker
+
+_log = logging.getLogger(__name__)
 
 
 def _abort_if_not_running(db, analysis_id: str) -> Analysis | None:
@@ -23,13 +30,12 @@ def _abort_if_not_running(db, analysis_id: str) -> Analysis | None:
 
 def run_analysis_job(analysis_id: str, db_url: str) -> None:
     """Heavy ML job: run under Celery worker (recommended) or FastAPI BackgroundTasks; opens its own DB session."""
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
+    db = get_db_session(db_url)
 
-    connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
-    engine = create_engine(db_url, connect_args=connect_args)
-    SessionMaker = sessionmaker(bind=engine)
-    db = SessionMaker()
+    tracker = None
+    traj = None
+    detector = None
+
     try:
         analysis = db.get(Analysis, analysis_id)
         if analysis is None:
@@ -171,4 +177,17 @@ def run_analysis_job(analysis_id: str, db_url: str) -> None:
         except Exception:  # noqa: BLE001
             db.rollback()
     finally:
+        try:
+            if detector is not None:
+                del detector
+            if tracker is not None:
+                del tracker
+            if traj is not None:
+                del traj
+            clear_tracker_cache()
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception as cleanup_error:  # noqa: BLE001
+            _log.error("Failed to clean up VRAM: %s", cleanup_error)
         db.close()

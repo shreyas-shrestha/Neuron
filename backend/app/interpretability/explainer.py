@@ -5,8 +5,10 @@ of behavior flags for non-technical stakeholders.
 
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 import re
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Any, Optional
 
 from better_profanity import profanity
@@ -81,6 +83,12 @@ EXPLAINER_LOCAL_LLM_FAILED = (
     "The representation drifted toward concepts that could not be automatically summarized. "
     "Please check the raw tokens locally."
 )
+
+EXPLAINER_TIMEOUT_MESSAGE = (
+    "Explanation generation timed out. Please review the raw tokens locally."
+)
+
+_OLLAMA_INVOKE_TIMEOUT_SEC = 45.0
 
 
 def sanitize_text(text: str) -> str:
@@ -157,6 +165,15 @@ def explain_flag(
     if not LANGCHAIN_AVAILABLE or EXPLAINER_PROMPT is None or ChatOllama is None:
         return safe_desc
 
+    prompt_args = {
+        "category": category,
+        "severity": severity,
+        "layer": layer,
+        "total_layers": total_layers,
+        "bci": bci,
+        "technical_description": safe_desc,
+        "domain": domain,
+    }
     try:
         llm = ChatOllama(
             model=settings.ollama_model,
@@ -164,17 +181,13 @@ def explain_flag(
             base_url=settings.ollama_base_url,
         )
         chain = EXPLAINER_PROMPT | llm
-        result = chain.invoke(
-            {
-                "category": category,
-                "severity": severity,
-                "layer": layer,
-                "total_layers": total_layers,
-                "bci": bci,
-                "technical_description": safe_desc,
-                "domain": domain,
-            }
-        )
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(chain.invoke, prompt_args)
+                result = future.result(timeout=_OLLAMA_INVOKE_TIMEOUT_SEC)
+        except FuturesTimeoutError:
+            _log.error("Local LLM (Ollama) generation timed out after %s seconds.", _OLLAMA_INVOKE_TIMEOUT_SEC)
+            return EXPLAINER_TIMEOUT_MESSAGE
         text_out = _extract_message_content(result)
         if not text_out:
             return safe_desc

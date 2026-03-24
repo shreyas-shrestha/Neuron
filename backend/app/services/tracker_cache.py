@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import gc
+import logging
 import os
 import threading
 import time
@@ -8,6 +10,8 @@ from collections import OrderedDict
 import torch
 
 from app.interpretability.trajectory import LayerTrajectoryTracker
+
+_log = logging.getLogger(__name__)
 
 _MAX_CACHED_TRACKERS = int(os.environ.get("NEURON_MAX_MODEL_CACHE", "2"))
 
@@ -40,8 +44,24 @@ class _LRUTrackerCache:
             self._cache[key] = (tracker, time.monotonic())
 
     def clear(self) -> None:
+        """
+        Drop all cached trackers, delete model references, and nudge GPU heap reclaim.
+        Safe to call after a long-running analysis job (e.g. Celery worker).
+        """
         with self._lock:
+            while self._cache:
+                _, (tracker, _) = self._cache.popitem(last=False)
+                try:
+                    del tracker
+                except Exception:  # noqa: BLE001
+                    pass
             self._cache.clear()
+        gc.collect()
+        if torch.cuda.is_available():
+            try:
+                torch.cuda.empty_cache()
+            except Exception as e:  # noqa: BLE001
+                _log.warning("torch.cuda.empty_cache after tracker clear: %s", e)
 
 
 _CACHE = _LRUTrackerCache(_MAX_CACHED_TRACKERS)
@@ -60,4 +80,5 @@ def get_tracker(hf_id: str, sae_paths: dict[int, str] | None = None) -> LayerTra
 
 
 def clear_tracker_cache() -> None:
+    """Public entry: clear LRU cache and release references (see _LRUTrackerCache.clear)."""
     _CACHE.clear()
