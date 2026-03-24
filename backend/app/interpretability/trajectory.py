@@ -4,12 +4,16 @@ Layer-wise representation trajectory via TransformerLens + optional per-layer SA
 
 from __future__ import annotations
 
+import gc
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import torch
+
+_log = logging.getLogger(__name__)
 
 from app.core.config import settings
 from app.interpretability.feature_extraction import cluster_feature_labels, summarize_top_features
@@ -93,16 +97,29 @@ class LayerTrajectoryTracker:
                     path_str = str(auto)
             self._layer_norm[layer] = None
             if path_str and Path(path_str).is_file():
-                ckpt = torch.load(path_str, map_location=self.device)
-                if isinstance(ckpt, dict) and "state_dict" in ckpt:
-                    sae.load_state_dict(ckpt["state_dict"], strict=False)
-                    if "x_mean" in ckpt and "x_std" in ckpt:
-                        self._layer_norm[layer] = (
-                            ckpt["x_mean"].to(self.device),
-                            ckpt["x_std"].to(self.device).clamp(min=1e-8),
-                        )
-                elif isinstance(ckpt, dict):
-                    sae.load_state_dict(ckpt, strict=False)
+                ckpt = None
+                try:
+                    ckpt = torch.load(
+                        path_str,
+                        map_location=self.device,
+                        weights_only=True,
+                    )
+                except Exception:
+                    _log.exception(
+                        "SAE checkpoint %s failed safe load (weights_only=True); skipping layer. "
+                        "Re-save with torch.save({\"state_dict\": sae.state_dict(), ...}, path).",
+                        path_str,
+                    )
+                if ckpt is not None:
+                    if isinstance(ckpt, dict) and "state_dict" in ckpt:
+                        sae.load_state_dict(ckpt["state_dict"], strict=False)
+                        if "x_mean" in ckpt and "x_std" in ckpt:
+                            self._layer_norm[layer] = (
+                                ckpt["x_mean"].to(self.device),
+                                ckpt["x_std"].to(self.device).clamp(min=1e-8),
+                            )
+                    elif isinstance(ckpt, dict):
+                        sae.load_state_dict(ckpt, strict=False)
             sae.to(self.device)
             sae.eval()
             self._saes[layer] = sae
@@ -118,6 +135,7 @@ class LayerTrajectoryTracker:
                 xm, xs = norm
                 flat = (flat - xm.to(flat.device)) / xs.to(flat.device).clamp(min=1e-8)
             _, codes, _ = sae(flat)
+        del flat
         return codes.reshape(b, p, -1)
 
     def track(self, text: str) -> TrajectoryResult:
@@ -133,13 +151,21 @@ class LayerTrajectoryTracker:
         per_layer_codes: dict[int, np.ndarray] = {}
         per_layer_curve: dict[int, float] = {}
 
-        for layer in range(self.model.cfg.n_layers):
-            key = _resid_hook_name(layer)
-            resid = cache[key]
-            codes = self._encode_layer(layer, resid)
-            mean_code = codes.mean(dim=(0, 1)).detach().cpu().numpy()
-            per_layer_codes[layer] = mean_code
-            per_layer_curve[layer] = float(np.linalg.norm(mean_code))
+        try:
+            for layer in range(self.model.cfg.n_layers):
+                key = _resid_hook_name(layer)
+                resid = cache[key].clone()
+                codes = self._encode_layer(layer, resid)
+                del resid
+                mean_code = codes.mean(dim=(0, 1)).detach().cpu().numpy()
+                del codes
+                per_layer_codes[layer] = mean_code
+                per_layer_curve[layer] = float(np.linalg.norm(mean_code))
+        finally:
+            del cache
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            gc.collect()
 
         delta_codes: dict[int, np.ndarray] = {}
         novel_features: dict[int, list[int]] = {}

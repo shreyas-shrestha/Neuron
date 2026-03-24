@@ -35,6 +35,7 @@ _config: dict[str, Any] = {
     "baseline_id": None,
     "fail_on": None,
     "layers_to_monitor": None,
+    "drift_scale": 500.0,
 }
 
 
@@ -44,6 +45,7 @@ def init(
     baseline_id: Optional[str] = None,
     fail_on: Optional[str] = None,
     layers_to_monitor: Optional[list[int]] = None,
+    drift_scale: float = 500.0,
 ) -> None:
     """Initialize Neuron SDK with your API key and model ID."""
     _config["api_key"] = api_key
@@ -51,6 +53,7 @@ def init(
     _config["baseline_id"] = baseline_id
     _config["fail_on"] = fail_on
     _config["layers_to_monitor"] = layers_to_monitor
+    _config["drift_scale"] = drift_scale
     print(f"[neuron] Initialized for model: {model_id}")
 
 
@@ -59,15 +62,25 @@ def _risk_rank(level: str) -> int:
     return order.get((level or "LOW").upper(), 0)
 
 
+def _default_monitor_layers(model: Any) -> list[int]:
+    """Sample early, middle, and late layers regardless of depth."""
+    n = int(model.cfg.n_layers)
+    return sorted({0, n // 4, n // 2, 3 * n // 4, n - 1})
+
+
 def compute_activation_bci(
     model_baseline: Any,
     model_current: Any,
     probe_dataloader: Iterable[Any],
     layers_to_monitor: Optional[list[int]] = None,
+    drift_scale: float = 500.0,
 ) -> float:
     """
-    Computes BCI based on the cosine similarity of mean residual stream activations
-    across specified layers, using a fixed probe dataset.
+    BCI = mean cosine drift × drift_scale, clamped to [0, 100].
+
+    ``drift_scale`` defaults to 500 so typical fine-tune noise (~0.02–0.04) stays
+    below BCI 25 (MODERATE) while larger drift (>0.1) exceeds 50 (HIGH).
+    Override via ``neuron.init(..., drift_scale=...)`` for your model family.
     """
     try:
         import torch
@@ -79,15 +92,15 @@ def compute_activation_bci(
             "Install with: pip install 'neuron-sdk[activations]'"
         ) from e
 
-    if layers_to_monitor is None:
-        layers_to_monitor = [0, 5, 11]
-
     if not isinstance(model_baseline, HookedTransformer) or not isinstance(
         model_current, HookedTransformer
     ):
         raise TypeError(
             "model_baseline and model_current must be transformer_lens.HookedTransformer instances."
         )
+
+    if layers_to_monitor is None:
+        layers_to_monitor = _default_monitor_layers(model_current)
 
     model_baseline.eval()
     model_current.eval()
@@ -135,14 +148,8 @@ def compute_activation_bci(
     if n_batches == 0:
         return 0.0
 
-    # Average drift across all batches, scaled to a 0-100 BCI score
-    final_bci = (total_drift / n_batches) * 100.0
-
-    # Apply a scaling factor to translate raw cosine distance into a human-readable severity score
-    severity_multiplier = 10.0
-    final_bci = final_bci * severity_multiplier
-
-    return float(min(100.0, max(0.0, final_bci)))
+    raw_drift = total_drift / n_batches
+    return float(min(100.0, max(0.0, raw_drift * drift_scale)))
 
 
 def checkpoint(
@@ -179,6 +186,7 @@ def checkpoint(
                 model,
                 probe_dataloader,
                 layers_to_monitor=layers,
+                drift_scale=float(_config.get("drift_scale") or 500.0),
             )
 
     payload = {

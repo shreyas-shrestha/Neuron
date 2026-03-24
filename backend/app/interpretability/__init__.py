@@ -7,4 +7,13 @@ __all__ = [
     "LayerTrajectoryTracker",
     "SparseAutoencoder",
     "TrajectoryResult",
+    "explain_flags_batch",
 ]
+
+
+def __getattr__(name: str):
+    if name == "explain_flags_batch":
+        from app.interpretability.explainer import explain_flags_batch as _efb
+
+        return _efb
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

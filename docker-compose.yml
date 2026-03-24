@@ -7,9 +7,11 @@ services:
       - "8000:8000"
     volumes:
       - neuron-db:/app/data
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=sqlite:////app/data/neuron.db
-      - SECRET_KEY=change-me-docker-compose-secret
+      - SECRET_KEY=${NEURON_SECRET_KEY:?NEURON_SECRET_KEY must be set (e.g. in repo-root .env)}
 
   frontend:
     build:

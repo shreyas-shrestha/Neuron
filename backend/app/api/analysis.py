@@ -1,5 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -20,6 +20,9 @@ from app.schemas.analysis import (
 )
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
+
+# Terminal states where a retry may legally reset the job (avoids racing a still-running worker).
+_ANALYSIS_RETRYABLE_STATUSES = ("failed", "complete", "sdk_checkpoint")
 
 
 def _require_owned_model(db: Session, model_id: str, user_id: str) -> ModelRegistry:
@@ -107,19 +110,37 @@ def analysis_retry(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    row = _require_owned_analysis(db, job_id, str(current_user.id))
-    row.status = "pending"
-    row.progress = 0.0
-    row.error_message = None
-    row.completed_at = None
-    row.trajectory_data = None
-    row.risk_flags = None
-    row.overall_risk_score = 0.0
+    _require_owned_analysis(db, job_id, str(current_user.id))
+    owned_models = select(ModelRegistry.id).where(ModelRegistry.owner_user_id == str(current_user.id))
+    result = db.execute(
+        update(Analysis)
+        .where(
+            Analysis.id == job_id,
+            Analysis.status.in_(_ANALYSIS_RETRYABLE_STATUSES),
+            Analysis.model_id.in_(owned_models),
+        )
+        .values(
+            status="pending",
+            progress=0.0,
+            error_message=None,
+            completed_at=None,
+            trajectory_data=None,
+            risk_flags=None,
+            overall_risk_score=0.0,
+        )
+        .returning(Analysis.id)
+    )
+    updated = result.fetchone()
     db.commit()
+    if updated is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Job is still running; cannot retry",
+        )
     from app.services.analysis_runner import run_analysis_job
 
-    background.add_task(run_analysis_job, str(row.id), settings.database_url)
-    return {"job_id": str(row.id), "status": "pending"}
+    background.add_task(run_analysis_job, job_id, settings.database_url)
+    return {"job_id": job_id, "status": "pending"}
 
 
 @router.get("/{job_id}/results", response_model=AnalysisResultsOut)

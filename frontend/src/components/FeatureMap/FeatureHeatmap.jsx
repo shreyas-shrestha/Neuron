@@ -13,8 +13,15 @@ function cellColor(intensity) {
 
 export default function FeatureHeatmap({ heatmap, featureIds, onCell }) {
   const max = useMemo(() => {
-    if (!heatmap || !heatmap.length) return 1;
-    return Math.max(1e-6, ...heatmap.flatMap((row) => row));
+    if (!heatmap?.length) return 1;
+    let m = 1e-6;
+    for (const row of heatmap) {
+      if (!row) continue;
+      for (const v of row) {
+        if (v > m) m = v;
+      }
+    }
+    return m;
   }, [heatmap]);
 
   const [sel, setSel] = useState(null);

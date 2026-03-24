@@ -12,6 +12,15 @@ from app.models.model_registry import ModelRegistry
 from app.services.tracker_cache import get_tracker
 
 
+def _abort_if_not_running(db, analysis_id: str) -> Analysis | None:
+    """Re-load row so concurrent retry (pending) is visible; abort stale workers."""
+    db.expire_all()
+    row = db.get(Analysis, analysis_id)
+    if row is None or row.status != "running":
+        return None
+    return row
+
+
 def run_analysis_job(analysis_id: str, db_url: str) -> None:
     """Executed in BackgroundTasks — opens its own DB session."""
     from sqlalchemy import create_engine
@@ -21,7 +30,6 @@ def run_analysis_job(analysis_id: str, db_url: str) -> None:
     engine = create_engine(db_url, connect_args=connect_args)
     SessionMaker = sessionmaker(bind=engine)
     db = SessionMaker()
-    analysis: Analysis | None = None
     try:
         analysis = db.get(Analysis, analysis_id)
         if analysis is None:
@@ -53,6 +61,10 @@ def run_analysis_job(analysis_id: str, db_url: str) -> None:
                     "(or use the project venv: pip install -e .)"
                 ) from exc
             raise
+
+        analysis = _abort_if_not_running(db, analysis_id)
+        if analysis is None:
+            return
         analysis.progress = 0.2
         db.commit()
 
@@ -66,6 +78,10 @@ def run_analysis_job(analysis_id: str, db_url: str) -> None:
 
         primary = texts[0]
         traj = tracker.track(primary)
+
+        analysis = _abort_if_not_running(db, analysis_id)
+        if analysis is None:
+            return
         analysis.progress = 0.5
         db.commit()
 
@@ -74,8 +90,13 @@ def run_analysis_job(analysis_id: str, db_url: str) -> None:
         disparity = None
         if analysis.analysis_type in ("compliance", "full"):
             probe = detector.run_demographic_probe(n_samples=min(80, max(20, len(texts) * 10)))
+
+            analysis = _abort_if_not_running(db, analysis_id)
+            if analysis is None:
+                return
             analysis.progress = 0.8
             db.commit()
+
             t_a = LOAN_TEMPLATE.format(name=NAME_GROUPS["group_a"][0])
             t_b = LOAN_TEMPLATE.format(name=NAME_GROUPS["group_b"][0])
             disparity = detector.detect_disparate_impact(t_a, t_b)
@@ -98,6 +119,10 @@ def run_analysis_job(analysis_id: str, db_url: str) -> None:
             )
         else:
             flags_dicts = [f.to_dict() for f in flags]
+
+        analysis = _abort_if_not_running(db, analysis_id)
+        if analysis is None:
+            return
         analysis.progress = 0.95
         db.commit()
 
@@ -120,6 +145,9 @@ def run_analysis_job(analysis_id: str, db_url: str) -> None:
                 "summary": disparity.summary,
             }
 
+        analysis = _abort_if_not_running(db, analysis_id)
+        if analysis is None:
+            return
         analysis.trajectory_data = payload
         analysis.risk_flags = flags_dicts
         analysis.overall_risk_score = risk_score
@@ -132,12 +160,16 @@ def run_analysis_job(analysis_id: str, db_url: str) -> None:
     except Exception as e:  # noqa: BLE001
         print(f"[neuron] Analysis job {analysis_id} FAILED: {e}")
         print(traceback.format_exc())
-        row = db.get(Analysis, analysis_id)
-        if row is not None:
-            row.status = "failed"
-            row.error_message = str(e)[:500]
-            row.progress = 0.0
-            row.completed_at = datetime.now(timezone.utc)
-            db.commit()
+        try:
+            db.expire_all()
+            row = db.get(Analysis, analysis_id)
+            if row is not None and row.status == "running":
+                row.status = "failed"
+                row.error_message = str(e)[:500]
+                row.progress = 0.0
+                row.completed_at = datetime.now(timezone.utc)
+                db.commit()
+        except Exception:  # noqa: BLE001
+            db.rollback()
     finally:
         db.close()

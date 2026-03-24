@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.api import analysis, auth as auth_routes, dashboard, demo as demo_routes, models as models_routes, reports, sdk as sdk_routes
 from app.core.auth import get_password_hash
@@ -16,6 +16,28 @@ from app.models.api_key import APIKey  # noqa: F401 — register table with Base
 from app.models.model_registry import ModelRegistry
 from app.models.report import ComplianceReport
 from app.models.user import User
+
+
+def _delete_demo_user(db, user: User) -> None:
+    """Atomic cleanup of one demo session (FK-safe order, single commit)."""
+    owned_ids = [
+        str(x)
+        for x in db.scalars(
+            select(ModelRegistry.id).where(ModelRegistry.owner_user_id == str(user.id))
+        ).all()
+    ]
+    if owned_ids:
+        analysis_ids = [
+            str(x)
+            for x in db.scalars(select(Analysis.id).where(Analysis.model_id.in_(owned_ids))).all()
+        ]
+        if analysis_ids:
+            db.execute(delete(ComplianceReport).where(ComplianceReport.analysis_id.in_(analysis_ids)))
+        db.execute(delete(Analysis).where(Analysis.model_id.in_(owned_ids)))
+        db.execute(delete(ModelRegistry).where(ModelRegistry.id.in_(owned_ids)))
+    db.execute(delete(APIKey).where(APIKey.user_id == str(user.id)))
+    db.delete(user)
+    db.commit()
 
 
 async def cleanup_demo_sessions() -> None:
@@ -35,28 +57,15 @@ async def cleanup_demo_sessions() -> None:
                 .scalars()
                 .all()
             )
+            n_ok = 0
             for user in old_demo_users:
-                owned = (
-                    db.execute(select(ModelRegistry).where(ModelRegistry.owner_user_id == str(user.id)))
-                    .scalars()
-                    .all()
-                )
-                mids = [str(m.id) for m in owned]
-                if mids:
-                    aid_list = [
-                        str(a.id)
-                        for a in db.execute(select(Analysis).where(Analysis.model_id.in_(mids))).scalars().all()
-                    ]
-                    if aid_list:
-                        db.query(ComplianceReport).filter(ComplianceReport.analysis_id.in_(aid_list)).delete(
-                            synchronize_session=False
-                        )
-                    db.query(Analysis).filter(Analysis.model_id.in_(mids)).delete(synchronize_session=False)
-                    db.query(ModelRegistry).filter(ModelRegistry.id.in_(mids)).delete(synchronize_session=False)
-                db.query(APIKey).filter(APIKey.user_id == str(user.id)).delete(synchronize_session=False)
-                db.delete(user)
-            db.commit()
-            print(f"[neuron] Cleaned up {len(old_demo_users)} demo sessions")
+                try:
+                    _delete_demo_user(db, user)
+                    n_ok += 1
+                except Exception as e:  # noqa: BLE001
+                    db.rollback()
+                    print(f"[neuron] Demo cleanup error for user {user.id}: {e}")
+            print(f"[neuron] Cleaned up {n_ok} demo sessions ({len(old_demo_users)} candidates)")
         except Exception as e:  # noqa: BLE001
             db.rollback()
             print(f"[neuron] Demo cleanup error: {e}")

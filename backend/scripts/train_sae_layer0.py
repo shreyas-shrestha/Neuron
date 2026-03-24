@@ -119,6 +119,7 @@ def main() -> None:
             f"L1: {total_l1 / n_batches:.4f}"
         )
 
+    # Plain tensors only — safe for torch.load(..., weights_only=True) in the API.
     torch.save(
         {
             "state_dict": sae.state_dict(),
@@ -126,8 +127,8 @@ def main() -> None:
             "sparse_dim": sparse_dim,
             "k": args.k,
             "layer": args.layer,
-            "x_mean": x_mean,
-            "x_std": x_std,
+            "x_mean": x_mean.cpu(),
+            "x_std": x_std.cpu(),
         },
         save_path,
     )

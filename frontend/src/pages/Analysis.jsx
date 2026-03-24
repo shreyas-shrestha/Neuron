@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import LayerTrajectoryChart from "../components/LayerTrajectory/LayerTrajectoryChart.jsx";
 import FeatureHeatmap from "../components/FeatureMap/FeatureHeatmap.jsx";
@@ -16,6 +16,7 @@ import {
 } from "../services/api.js";
 import { useDebounced } from "../hooks/useDebounced.js";
 import { bciRiskLabel, bciTextClass, riskBadgeClass } from "../utils/bciDisplay.js";
+import { backoffInterval } from "../utils/pollBackoff.js";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -62,8 +63,9 @@ export default function Analysis() {
     (modelId ? `${modelId.slice(0, 8)}…` : "—");
 
   useEffect(() => {
-    let t;
+    let timeoutId;
     let cancelled = false;
+    let attempt = 0;
     async function poll() {
       try {
         const s = await analysisStatus(id);
@@ -77,15 +79,19 @@ export default function Analysis() {
           return;
         }
         if (s.status === "failed") return;
-        t = setTimeout(poll, 1200);
+        attempt += 1;
+        timeoutId = setTimeout(poll, backoffInterval(attempt));
       } catch {
-        if (!cancelled) t = setTimeout(poll, 2000);
+        if (!cancelled) {
+          attempt += 1;
+          timeoutId = setTimeout(poll, backoffInterval(attempt, 2000));
+        }
       }
     }
     poll();
     return () => {
       cancelled = true;
-      clearTimeout(t);
+      clearTimeout(timeoutId);
     };
   }, [id, pollNonce]);
 
@@ -118,6 +124,13 @@ export default function Analysis() {
   });
 
   const traj = results?.trajectory;
+  const heatmapData = useMemo(
+    () => ({
+      heatmap: traj?.heatmap ?? preview?.heatmap ?? null,
+      featureIds: traj?.heatmap_feature_ids ?? preview?.heatmap_feature_ids ?? null,
+    }),
+    [traj, preview]
+  );
   const curve = traj?.per_layer_curve || preview?.per_layer_curve;
   const novel = traj?.novel_features_by_layer || preview?.novel_features_by_layer;
   const probe = traj?.probe || {};
@@ -292,10 +305,7 @@ export default function Analysis() {
             {showFeatureMap && (
               <div className="px-4 pb-4 border-t border-neuron-border pt-4">
                 <p className="text-[12px] text-neuron-secondary mb-3 font-sans">Click any cell for token attribution.</p>
-                <FeatureHeatmap
-                  heatmap={traj?.heatmap || preview?.heatmap}
-                  featureIds={traj?.heatmap_feature_ids || preview?.heatmap_feature_ids}
-                />
+                <FeatureHeatmap heatmap={heatmapData.heatmap} featureIds={heatmapData.featureIds} />
               </div>
             )}
           </div>

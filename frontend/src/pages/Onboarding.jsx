@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { analysisResults, analysisStatus, fetchMe, registerModel } from "../services/api.js";
+import { backoffInterval } from "../utils/pollBackoff.js";
 
 const STEPS = ["Connect", "Analyze"];
 
@@ -220,6 +221,8 @@ export default function Onboarding() {
   useEffect(() => {
     if (!jobId) return undefined;
     let cancelled = false;
+    let timeoutId;
+    let attempt = 0;
     async function tick() {
       try {
         const s = await analysisStatus(jobId);
@@ -241,16 +244,22 @@ export default function Onboarding() {
         }
         if (s.status === "failed") {
           setFinishError(s.error_message?.trim() || "Analysis job failed.");
+          return;
         }
+        attempt += 1;
+        timeoutId = setTimeout(tick, backoffInterval(attempt, 3000, 8000));
       } catch (err) {
         if (!cancelled) setFinishError(err?.response?.data?.detail || err?.message || "Status poll failed");
+        if (!cancelled) {
+          attempt += 1;
+          timeoutId = setTimeout(tick, backoffInterval(attempt, 2000));
+        }
       }
     }
     tick();
-    const iv = setInterval(tick, 3000);
     return () => {
       cancelled = true;
-      clearInterval(iv);
+      clearTimeout(timeoutId);
     };
   }, [jobId]);
 

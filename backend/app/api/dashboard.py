@@ -1,3 +1,4 @@
+import time
 from collections import Counter
 
 from fastapi import APIRouter, Depends
@@ -14,15 +15,23 @@ from app.schemas.dashboard import DashboardSummary
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
+_sae_status_cache: tuple[float, dict] = (0.0, {})
+
 
 def _sae_training_status() -> dict:
+    global _sae_status_cache
+    now = time.monotonic()
+    if now - _sae_status_cache[0] < 30.0:
+        return _sae_status_cache[1]
     base = settings.sae_checkpoints_dir
     trained_layers = sorted([i for i in range(12) if (base / f"gpt2_layer{i}.pt").is_file()])
-    return {
+    result = {
         "trained_layers": trained_layers,
         "total_layers": 12,
         "ready_for_demo": len(trained_layers) >= 3,
     }
+    _sae_status_cache = (now, result)
+    return result
 
 
 @router.get("/summary", response_model=DashboardSummary)
