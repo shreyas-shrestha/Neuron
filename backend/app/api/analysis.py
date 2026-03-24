@@ -18,8 +18,6 @@ from app.schemas.analysis import (
     TrajectoryPreviewRequest,
     TrajectoryResultOut,
 )
-from app.services.analysis_runner import run_analysis_job
-from app.services.tracker_cache import get_tracker
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
@@ -58,6 +56,8 @@ def run_analysis(
     db.add(job)
     db.commit()
     db.refresh(job)
+    from app.services.analysis_runner import run_analysis_job
+
     background.add_task(run_analysis_job, str(job.id), settings.database_url)
     return {"job_id": str(job.id), "status": "pending"}
 
@@ -116,6 +116,8 @@ def analysis_retry(
     row.risk_flags = None
     row.overall_risk_score = 0.0
     db.commit()
+    from app.services.analysis_runner import run_analysis_job
+
     background.add_task(run_analysis_job, str(row.id), settings.database_url)
     return {"job_id": str(row.id), "status": "pending"}
 
@@ -159,6 +161,8 @@ def trajectory_preview(
 ):
     model = _require_owned_model(db, body.model_id, str(current_user.id))
     hf_id = model.huggingface_id or "gpt2"
+    from app.services.tracker_cache import get_tracker
+
     tracker = get_tracker(hf_id)
     traj = tracker.track(body.text)
     return traj.to_api_dict()
@@ -172,6 +176,8 @@ def trajectory_compare(
 ):
     model = _require_owned_model(db, body.model_id, str(current_user.id))
     hf_id = model.huggingface_id or "gpt2"
+    from app.services.tracker_cache import get_tracker
+
     tracker = get_tracker(hf_id)
     a = tracker.track(body.text_a)
     b = tracker.track(body.text_b)

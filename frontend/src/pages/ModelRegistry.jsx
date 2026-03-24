@@ -31,9 +31,53 @@ function formatAnalyzed(iso) {
 }
 
 export default function ModelRegistry() {
-  const { data: models, isLoading } = useQuery({ queryKey: ["models"], queryFn: listModels });
+  const {
+    data: models,
+    isPending,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["models"],
+    queryFn: listModels,
+    retry: (count, err) => err?.response?.status !== 401 && count < 2,
+  });
 
-  if (!isLoading && (!models || models.length === 0)) {
+  if (isError) {
+    const status = error?.response?.status;
+    const d = error?.response?.data?.detail;
+    const detailStr = Array.isArray(d)
+      ? d.map((x) => (typeof x?.msg === "string" ? x.msg : JSON.stringify(x))).join("; ")
+      : d;
+    const msg =
+      detailStr ||
+      error?.message ||
+      "Could not load models. Is the API running (port 8000) and are you logged in?";
+    const authProblem =
+      status === 401 ||
+      String(detailStr).toLowerCase().includes("not authenticated") ||
+      String(detailStr).toLowerCase().includes("user not found");
+    return (
+      <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center text-center max-w-md mx-auto px-4">
+        <p className="text-[14px] text-neuron-secondary font-sans leading-relaxed">
+          {authProblem
+            ? "Your session is invalid or expired (for example after a database reset). Sign in again."
+            : String(msg)}
+        </p>
+        {authProblem ? (
+          <Link to="/login" className="mt-6 btn-primary px-6 inline-block text-center">
+            Sign in
+          </Link>
+        ) : (
+          <button type="button" className="mt-6 btn-primary px-6" onClick={() => refetch()}>
+            Retry
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (!isPending && (!models || models.length === 0)) {
     return (
       <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center text-center max-w-md mx-auto px-4">
         <NeuralIcon />
@@ -59,7 +103,7 @@ export default function ModelRegistry() {
         </Link>
       </div>
 
-      {isLoading && (
+      {isPending && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-36 rounded-md border border-neuron-border shimmer" />
@@ -67,7 +111,7 @@ export default function ModelRegistry() {
         </div>
       )}
 
-      {!isLoading && (
+      {!isPending && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {(models || []).map((m) => {
             const risk = bciRiskLabel(m.overall_risk_score);

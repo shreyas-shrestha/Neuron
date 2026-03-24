@@ -11,6 +11,24 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+/** Stale JWT (e.g. DB reset) yields 401 "User not found" — clear token and send user to login. */
+api.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    const status = error.response?.status;
+    const url = String(error.config?.url || "");
+    if (status === 401) {
+      const authAttempt = url.includes("/auth/login") || url.includes("/auth/register");
+      localStorage.removeItem("neuron_token");
+      const path = window.location.pathname;
+      if (!authAttempt && !path.startsWith("/login") && !path.startsWith("/demo")) {
+        window.location.assign("/login");
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export async function login(email, password) {
   const { data } = await api.post("/auth/login", { email, password });
   localStorage.setItem("neuron_token", data.access_token);

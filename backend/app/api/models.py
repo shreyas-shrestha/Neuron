@@ -1,7 +1,6 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
-from transformers import AutoConfig
 
 from app.api.deps import get_current_user
 from app.core.config import settings
@@ -10,8 +9,6 @@ from app.models.analysis import Analysis
 from app.models.model_registry import ModelRegistry
 from app.models.user import User
 from app.schemas.model_registry import ModelOut, ModelRegister, ModelRegisterResponse
-from app.services.analysis_runner import run_analysis_job
-from app.services.tracker_cache import clear_tracker_cache, get_tracker
 
 router = APIRouter(prefix="/models", tags=["models"])
 
@@ -25,6 +22,8 @@ def register_model(
 ):
     hf = body.huggingface_id or "gpt2"
     try:
+        from transformers import AutoConfig
+
         config = AutoConfig.from_pretrained(hf)
         n_layers = int(getattr(config, "num_hidden_layers", getattr(config, "n_layer", 12)))
         hidden = int(getattr(config, "hidden_size", getattr(config, "n_embd", 768)))
@@ -56,6 +55,8 @@ def register_model(
     db.add(job)
     db.commit()
     db.refresh(job)
+    from app.services.analysis_runner import run_analysis_job
+
     background.add_task(run_analysis_job, str(job.id), settings.database_url)
     return ModelRegisterResponse(
         model=ModelOut.model_validate(row),
@@ -104,6 +105,8 @@ def reload_model(
         raise HTTPException(status_code=404, detail="Model not found")
     if row.owner_user_id and row.owner_user_id != str(current_user.id):
         raise HTTPException(status_code=403, detail="Forbidden")
+    from app.services.tracker_cache import clear_tracker_cache
+
     clear_tracker_cache()
     return {"status": "cache_cleared", "model_id": model_id}
 
@@ -120,6 +123,8 @@ def model_layers(
     if row.owner_user_id and row.owner_user_id != str(current_user.id):
         raise HTTPException(status_code=403, detail="Forbidden")
     hf = row.huggingface_id or "gpt2"
+    from app.services.tracker_cache import get_tracker
+
     tracker = get_tracker(hf)
     return {
         "model_id": str(row.id),

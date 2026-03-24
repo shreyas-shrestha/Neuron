@@ -3,6 +3,9 @@ from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent
+_DEFAULT_SQLITE = f"sqlite:///{_BACKEND_ROOT / 'neuron.db'}"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -12,7 +15,7 @@ class Settings(BaseSettings):
     anthropic_api_key: Optional[str] = None
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
-    database_url: str = "sqlite:///./neuron.db"
+    database_url: str = _DEFAULT_SQLITE
     data_dir: Path = Path(__file__).resolve().parent.parent.parent / "data"
     reports_dir: Path = Path(__file__).resolve().parent.parent.parent / "data" / "reports"
     sae_checkpoints_dir: Path = Path(__file__).resolve().parent.parent.parent / "data" / "sae"

@@ -42,27 +42,119 @@ function analysisPhaseProgress(status, progress) {
 }
 
 function StepIndicator({ step }) {
+  const connectDone = step >= 2;
+  const lineActive = step >= 2;
+
   return (
-    <div className="flex flex-wrap justify-center gap-8 md:gap-14 mb-10 max-w-md mx-auto">
-      {STEPS.map((label, i) => {
-        const n = i + 1;
-        const active = n === step;
-        const done = n < step;
-        return (
-          <div key={label} className="flex flex-col items-center w-[100px]">
-            <div
-              className={`w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-semibold border-2 transition-all duration-200 ${
-                done
-                  ? "bg-neuron-accent border-neuron-accent text-zinc-950"
-                  : active
-                    ? "border-neuron-accent bg-neuron-muted text-neuron-primary ring-2 ring-neuron-accent/40 ring-offset-2 ring-offset-neuron-subtle"
-                    : "border-neuron-border bg-neuron-bg text-neuron-mutedText"
-              }`}
-            >
-              {done ? <CheckMini className="w-4 h-4 text-zinc-950" /> : n}
-            </div>
-            <span className="text-[12px] text-neuron-secondary mt-2 text-center font-sans leading-tight">{label}</span>
+    <div className="w-full max-w-md mx-auto mb-10 px-1">
+      <div className="flex items-center justify-center gap-0">
+        <div className="flex flex-col items-center w-[76px] shrink-0">
+          <div
+            className={`w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-semibold border-2 transition-all duration-300 ${
+              connectDone
+                ? "bg-emerald-500 border-emerald-500 text-white shadow-sm shadow-emerald-500/25"
+                : step === 1
+                  ? "border-neuron-accent bg-neuron-muted text-neuron-primary"
+                  : "border-neuron-border bg-neuron-bg text-neuron-mutedText"
+            }`}
+            aria-current={step === 1 ? "step" : undefined}
+          >
+            {connectDone ? <CheckMini className="w-4 h-4 text-white" /> : "1"}
           </div>
+        </div>
+
+        <div
+          className={`h-0.5 flex-1 min-w-[2.5rem] max-w-[7.5rem] rounded-full transition-colors duration-300 ${
+            lineActive ? "bg-emerald-500" : "bg-neuron-border"
+          }`}
+          aria-hidden
+        />
+
+        <div className="flex flex-col items-center w-[76px] shrink-0">
+          <div
+            className={`w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-semibold border-2 transition-all duration-300 ${
+              step === 2
+                ? "border-neuron-accent bg-neuron-muted text-neuron-primary"
+                : "border-neuron-border bg-neuron-bg text-neuron-mutedText"
+            }`}
+            aria-current={step === 2 ? "step" : undefined}
+          >
+            2
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-center gap-0 mt-2.5">
+        <span
+          className={`w-[76px] shrink-0 text-center text-[12px] font-sans leading-tight ${
+            connectDone ? "text-emerald-600 dark:text-emerald-400 font-medium" : step === 1 ? "text-neuron-primary font-medium" : "text-neuron-secondary"
+          }`}
+        >
+          {STEPS[0]}
+        </span>
+        <span className="flex-1 min-w-[2.5rem] max-w-[7.5rem]" aria-hidden />
+        <span
+          className={`w-[76px] shrink-0 text-center text-[12px] font-sans leading-tight ${
+            step === 2 ? "text-neuron-primary font-medium" : "text-neuron-secondary"
+          }`}
+        >
+          {STEPS[1]}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** Stacked choices: HuggingFace → Local → Python SDK (recommended), top to bottom. */
+const CONNECTION_CHOICES = [
+  {
+    id: "huggingface",
+    title: "HuggingFace Model",
+    description: "Analyze any public HF model",
+  },
+  {
+    id: "local",
+    title: "Local Checkpoint",
+    description: "Upload a checkpoint path",
+  },
+  {
+    id: "sdk",
+    title: "Python SDK",
+    description: "Monitor models during retraining",
+    recommended: true,
+  },
+];
+
+function ConnectionStack({ value, onChange }) {
+  return (
+    <div className="space-y-2.5" role="radiogroup" aria-label="How to connect your model">
+      {CONNECTION_CHOICES.map((c) => {
+        const selected = value === c.id;
+        return (
+          <button
+            key={c.id}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(c.id)}
+            className={`w-full text-left rounded-lg border px-4 py-3.5 transition-colors duration-150 ${
+              selected
+                ? "border-neuron-accent bg-neuron-accent/5 shadow-sm"
+                : "border-neuron-border bg-neuron-bg hover:border-neuron-border hover:bg-neuron-muted/30"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-display font-semibold text-[15px] text-neuron-primary leading-snug">{c.title}</div>
+                <p className="text-[12px] text-neuron-secondary font-sans mt-1 leading-relaxed">{c.description}</p>
+              </div>
+              {c.recommended ? (
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/35 self-start">
+                  Recommended
+                </span>
+              ) : null}
+            </div>
+          </button>
         );
       })}
     </div>
@@ -72,7 +164,10 @@ function StepIndicator({ step }) {
 export default function Onboarding() {
   useQuery({ queryKey: ["me"], queryFn: fetchMe });
   const [step, setStep] = useState(1);
+  const [selectedOption, setSelectedOption] = useState("huggingface");
   const [hfId, setHfId] = useState("gpt2");
+  const [localCheckpointPath, setLocalCheckpointPath] = useState("");
+  const [localModelName, setLocalModelName] = useState("");
   const [busy, setBusy] = useState(false);
   const [phaseProgressPct, setPhaseProgressPct] = useState(0);
   const [summary, setSummary] = useState(null);
@@ -82,8 +177,6 @@ export default function Onboarding() {
 
   async function startAnalysis(e) {
     e.preventDefault();
-    const trimmed = hfId.trim();
-    if (!trimmed) return;
     setFinishError("");
     setBusy(true);
     setSummary(null);
@@ -91,14 +184,32 @@ export default function Onboarding() {
     setJobStatus(null);
     setPhaseProgressPct(0);
     try {
-      const short = trimmed.split("/").pop() || "model";
-      const res = await registerModel({
-        name: short,
-        huggingface_id: trimmed,
-        domain: "general",
-      });
-      setJobId(res.initial_analysis_job_id);
-      setStep(2);
+      if (selectedOption === "huggingface") {
+        const trimmed = hfId.trim();
+        if (!trimmed) return;
+        const short = trimmed.split("/").pop() || "model";
+        const res = await registerModel({
+          name: short,
+          huggingface_id: trimmed,
+          domain: "general",
+        });
+        setJobId(res.initial_analysis_job_id);
+        setStep(2);
+      } else if (selectedOption === "local") {
+        const path = localCheckpointPath.trim();
+        if (!path) return;
+        const short =
+          localModelName.trim() ||
+          path.replace(/\\/g, "/").split("/").filter(Boolean).pop() ||
+          "checkpoint";
+        const res = await registerModel({
+          name: short,
+          checkpoint_path: path,
+          domain: "general",
+        });
+        setJobId(res.initial_analysis_job_id);
+        setStep(2);
+      }
     } catch (err) {
       setFinishError(err?.response?.data?.detail || err?.message || "Registration failed");
     } finally {
@@ -144,50 +255,107 @@ export default function Onboarding() {
   }, [jobId]);
 
   return (
-    <div className="max-w-lg mx-auto min-h-screen pb-12">
-      <div className="mb-8">
+    <div className="max-w-lg mx-auto min-h-screen pb-14 px-1">
+      <header className="mb-9">
         <p className="text-[13px] text-neuron-mutedText font-sans tracking-wide">Onboarding</p>
-        <h1 className="font-display font-semibold text-2xl text-neuron-primary mt-1">Add a model</h1>
-      </div>
+        <h1 className="font-display font-semibold text-2xl text-neuron-primary mt-1.5">Add a model</h1>
+      </header>
 
       <StepIndicator step={step} />
 
       {step === 1 && (
-        <section className="space-y-5">
-          <h2 className="font-display font-semibold text-[16px] text-neuron-primary">What model do you want to monitor?</h2>
-          <form onSubmit={startAnalysis} className="space-y-4">
-            <label className="block">
-              <span className="text-[13px] font-medium text-neuron-secondary font-sans">HuggingFace model ID</span>
-              <input
-                className="input-neuron mt-1.5 w-full font-mono text-sm"
-                placeholder="gpt2"
-                value={hfId}
-                onChange={(e) => setHfId(e.target.value)}
-              />
-            </label>
-            <p className="text-[12px] text-neuron-mutedText font-sans">Start with gpt2 for a fast demo (~2 min)</p>
-            <p className="text-[12px] text-neuron-secondary font-sans leading-relaxed">
-              Want to monitor during retraining instead?{" "}
-              <Link to="/docs" className="text-neuron-accent font-medium hover:underline">
-                Use our Python SDK: pip install neuron-sdk
-              </Link>
-            </p>
-            {finishError && (
-              <div className="text-sm text-neuron-danger font-sans border-l-[3px] border-l-neuron-danger bg-neuron-danger-light px-3 py-2 rounded-sm">
-                {finishError}
+        <section className="space-y-6">
+          <h2 className="font-display font-semibold text-[16px] text-neuron-primary leading-snug pr-1">
+            What model do you want to monitor?
+          </h2>
+
+          <ConnectionStack value={selectedOption} onChange={setSelectedOption} />
+
+          <div className="border-t border-neuron-border pt-6 space-y-5" role="region" aria-label="Connection details">
+            {selectedOption === "sdk" && (
+              <div className="space-y-4">
+                <p className="text-[13px] text-neuron-secondary font-sans leading-relaxed">
+                  Monitor models during retraining from your training loop.
+                </p>
+                <pre className="p-4 rounded-lg border border-neuron-border bg-neuron-muted/25 text-[12px] font-mono text-neuron-primary overflow-x-auto leading-relaxed">
+                  {`import neuron
+neuron.init(api_key="nrn_...", model_id="your-model")
+neuron.checkpoint(model, epoch=epoch)`}
+                </pre>
+                <Link
+                  to="/settings"
+                  className="inline-flex btn-secondary text-[13px] min-h-[44px] px-5 items-center justify-center w-full sm:w-auto"
+                >
+                  Get API key in Settings →
+                </Link>
               </div>
             )}
-            <button type="submit" disabled={busy || !hfId.trim()} className="btn-primary w-full min-h-[44px] disabled:opacity-40">
-              {busy ? "Starting…" : "Start Analysis →"}
-            </button>
-          </form>
+
+            {selectedOption === "huggingface" && (
+              <form onSubmit={startAnalysis} className="space-y-5">
+                <label className="block">
+                  <span className="text-[13px] font-medium text-neuron-secondary font-sans">HuggingFace model ID</span>
+                  <input
+                    className="input-neuron mt-2 w-full font-mono text-sm"
+                    placeholder="gpt2"
+                    value={hfId}
+                    onChange={(e) => setHfId(e.target.value)}
+                  />
+                </label>
+                <p className="text-[12px] text-neuron-mutedText font-sans -mt-1">Start with gpt2 for a fast demo (~2 min)</p>
+                {finishError && (
+                  <div className="text-sm text-neuron-danger font-sans border-l-[3px] border-l-neuron-danger bg-neuron-danger-light px-3 py-2.5 rounded-sm">
+                    {finishError}
+                  </div>
+                )}
+                <button type="submit" disabled={busy || !hfId.trim()} className="btn-primary w-full min-h-[44px] disabled:opacity-40">
+                  {busy ? "Starting…" : "Start Analysis →"}
+                </button>
+              </form>
+            )}
+
+            {selectedOption === "local" && (
+              <form onSubmit={startAnalysis} className="space-y-5">
+                <label className="block">
+                  <span className="text-[13px] font-medium text-neuron-secondary font-sans">Checkpoint path</span>
+                  <input
+                    className="input-neuron mt-2 w-full font-mono text-sm"
+                    placeholder="/path/to/checkpoint.pt"
+                    value={localCheckpointPath}
+                    onChange={(e) => setLocalCheckpointPath(e.target.value)}
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[13px] font-medium text-neuron-secondary font-sans">Name (optional)</span>
+                  <input
+                    className="input-neuron mt-2 w-full text-sm"
+                    placeholder="My fine-tuned model"
+                    value={localModelName}
+                    onChange={(e) => setLocalModelName(e.target.value)}
+                  />
+                </label>
+                {finishError && (
+                  <div className="text-sm text-neuron-danger font-sans border-l-[3px] border-l-neuron-danger bg-neuron-danger-light px-3 py-2.5 rounded-sm">
+                    {finishError}
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  disabled={busy || !localCheckpointPath.trim()}
+                  className="btn-primary w-full min-h-[44px] disabled:opacity-40"
+                >
+                  {busy ? "Starting…" : "Start Analysis →"}
+                </button>
+              </form>
+            )}
+          </div>
         </section>
       )}
 
       {step === 2 && (
-        <section className="space-y-6">
-          <h2 className="font-display font-semibold text-[16px] text-neuron-primary">Analyzing your model</h2>
-          <p className="text-[13px] text-neuron-mutedText font-sans">~2 min for GPT-2 · larger models take longer</p>
+        <section className="space-y-5">
+          <h2 className="font-display font-semibold text-[16px] text-neuron-primary leading-snug">Analyzing your model</h2>
+          <p className="text-[13px] text-neuron-mutedText font-sans leading-relaxed">~2 min for GPT-2 · larger models take longer</p>
           <div className="h-2 w-full bg-neuron-muted rounded-full overflow-hidden border border-neuron-border">
             <div
               className="h-full bg-neuron-accent transition-all duration-300 rounded-full"
@@ -196,7 +364,7 @@ export default function Onboarding() {
               }}
             />
           </div>
-          <ul className="space-y-3">
+          <ul className="space-y-3.5 pt-1">
             {(() => {
               const { completedCount, failed } = analysisPhaseProgress(jobStatus?.status, jobStatus?.progress);
               return ANALYSIS_PHASES.map((label, idx) => {
@@ -308,7 +476,7 @@ export default function Onboarding() {
         </section>
       )}
 
-      <p className="mt-10 text-center text-xs text-neuron-mutedText font-sans">
+      <p className="mt-12 text-center text-xs text-neuron-mutedText font-sans">
         <Link to="/" className="text-neuron-accent font-medium hover:underline">
           Back to models
         </Link>

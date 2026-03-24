@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
-from app.interpretability.report_generator import build_pdf_report
 from app.models.analysis import Analysis
 from app.models.model_registry import ModelRegistry
 from app.models.report import ComplianceReport
@@ -38,6 +37,8 @@ def generate_report(
     )
     pdf_name = f"report_{body.analysis_id}_{body.report_type}.pdf"
     pdf_path = settings.reports_dir / pdf_name
+    from app.interpretability.report_generator import build_pdf_report
+
     build_pdf_report(
         pdf_path,
         framework=body.report_type,
