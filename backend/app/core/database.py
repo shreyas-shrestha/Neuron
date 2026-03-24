@@ -1,18 +1,32 @@
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Generator
 from typing import Optional
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import settings
+from app.core.db_migrations import ensure_analysis_worker_lifecycle_columns
 
-connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
+_sqlite_connect_args = {"check_same_thread": False, "timeout": 30.0}
+connect_args = _sqlite_connect_args if settings.database_url.startswith("sqlite") else {}
 engine = create_engine(settings.database_url, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+
+@event.listens_for(Engine, "connect")
+def _sqlite_wal_and_busy_timeout(dbapi_connection, _connection_record) -> None:
+    if not isinstance(dbapi_connection, sqlite3.Connection):
+        return
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=30000")
+    cursor.close()
 
 # Singleton pooled engine for background/Celery jobs (avoids per-job engine creation / connection churn).
 _engine = None
@@ -43,7 +57,7 @@ def get_db_session(db_url: str) -> Session:
         _bound_pool_url = None
 
     if _engine is None:
-        ca = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
+        ca = dict(_sqlite_connect_args) if db_url.startswith("sqlite") else {}
         if db_url.startswith("sqlite"):
             _engine = create_engine(
                 db_url,
@@ -59,6 +73,7 @@ def get_db_session(db_url: str) -> Session:
                 max_overflow=20,
                 pool_pre_ping=True,
             )
+        ensure_analysis_worker_lifecycle_columns(_engine)
         _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
         _bound_pool_url = db_url
 

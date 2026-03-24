@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import gc
 import logging
+import os
+import threading
 import traceback
 from datetime import datetime, timezone
 
@@ -9,7 +11,7 @@ import torch
 
 from app.core.config import settings
 from app.interpretability.compliance_detector import ComplianceDetector
-from app.interpretability.explainer import explain_flags_batch
+from app.interpretability.explainer import run_explain_flags_batch_protected
 from app.interpretability.lending_probes import LOAN_TEMPLATE, NAME_GROUPS, UCI_STYLE_SAMPLES
 from app.core.database import get_db_session
 from app.models.analysis import Analysis
@@ -17,6 +19,12 @@ from app.models.model_registry import ModelRegistry
 from app.services.tracker_cache import clear_tracker_cache, get_tracker
 
 _log = logging.getLogger(__name__)
+
+_CLEAR_TRACKER_AFTER_JOB = os.environ.get("NEURON_CLEAR_TRACKER_AFTER_JOB", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 
 def _abort_if_not_running(db, analysis_id: str) -> Analysis | None:
@@ -28,13 +36,29 @@ def _abort_if_not_running(db, analysis_id: str) -> Analysis | None:
     return row
 
 
-def run_analysis_job(analysis_id: str, db_url: str) -> None:
+def _heartbeat_tick(db_url: str, analysis_id: str) -> None:
+    try:
+        s = get_db_session(db_url)
+        try:
+            row = s.get(Analysis, analysis_id)
+            if row is not None and row.status == "running":
+                row.last_heartbeat = datetime.now(timezone.utc)
+                s.commit()
+        finally:
+            s.close()
+    except Exception:  # noqa: BLE001
+        _log.debug("Heartbeat update failed for analysis %s", analysis_id, exc_info=True)
+
+
+def run_analysis_job(analysis_id: str, db_url: str, worker_id: str | None = None) -> None:
     """Heavy ML job: run under Celery worker (recommended) or FastAPI BackgroundTasks; opens its own DB session."""
     db = get_db_session(db_url)
 
     tracker = None
     traj = None
     detector = None
+    stop_heartbeat = threading.Event()
+    heartbeat_thread: threading.Thread | None = None
 
     try:
         analysis = db.get(Analysis, analysis_id)
@@ -50,10 +74,27 @@ def run_analysis_job(analysis_id: str, db_url: str) -> None:
             db.commit()
             return
 
+        now = datetime.now(timezone.utc)
         analysis.status = "running"
         analysis.progress = 0.05
         analysis.error_message = None
+        analysis.started_at = now
+        analysis.last_heartbeat = now
+        analysis.worker_id = (worker_id or f"{os.environ.get('HOSTNAME', 'local')}:{os.getpid()}")[:256]
         db.commit()
+
+        interval = max(5.0, float(settings.analysis_heartbeat_interval_seconds))
+
+        def _heartbeat_loop() -> None:
+            while not stop_heartbeat.wait(interval):
+                _heartbeat_tick(db_url, analysis_id)
+
+        heartbeat_thread = threading.Thread(
+            target=_heartbeat_loop,
+            daemon=True,
+            name=f"neuron-analysis-hb-{analysis_id[:8]}",
+        )
+        heartbeat_thread.start()
 
         hf_id = model.huggingface_id or "gpt2"
         try:
@@ -117,7 +158,7 @@ def run_analysis_job(analysis_id: str, db_url: str) -> None:
         if settings.ollama_explain_enabled:
             flags_dicts = [f.to_dict() for f in flags]
             enriched = [{**f, "total_layers": traj.layer_count} for f in flags_dicts]
-            flags_dicts = explain_flags_batch(
+            flags_dicts = run_explain_flags_batch_protected(
                 enriched,
                 bci=risk_score,
                 domain=model.domain or "general",
@@ -177,6 +218,9 @@ def run_analysis_job(analysis_id: str, db_url: str) -> None:
         except Exception:  # noqa: BLE001
             db.rollback()
     finally:
+        stop_heartbeat.set()
+        if heartbeat_thread is not None:
+            heartbeat_thread.join(timeout=3.0)
         try:
             if detector is not None:
                 del detector
@@ -184,7 +228,8 @@ def run_analysis_job(analysis_id: str, db_url: str) -> None:
                 del tracker
             if traj is not None:
                 del traj
-            clear_tracker_cache()
+            if _CLEAR_TRACKER_AFTER_JOB:
+                clear_tracker_cache()
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()

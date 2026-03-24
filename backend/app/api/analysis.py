@@ -130,6 +130,9 @@ def analysis_retry(
             trajectory_data=None,
             risk_flags=None,
             overall_risk_score=0.0,
+            last_heartbeat=None,
+            started_at=None,
+            worker_id=None,
         )
         .returning(Analysis.id)
     )

@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     aws_secret_access_key: Optional[str] = None
     s3_artifacts_bucket: Optional[str] = None
 
+    # Analysis job watchdog (worker heartbeat + API/Celery sweeper).
+    analysis_heartbeat_interval_seconds: float = 30.0
+    analysis_heartbeat_stale_seconds: float = 600.0
+    analysis_watchdog_interval_seconds: float = 60.0
+    # Hard wall-clock cap for the entire Ollama explain_flags_batch (Unix setitimer; see explainer).
+    ollama_explain_batch_wallclock_seconds: float = 300.0
+
 
 settings = Settings()
 settings.data_dir.mkdir(parents=True, exist_ok=True)

@@ -11,6 +11,8 @@ from app.api import analysis, auth as auth_routes, dashboard, demo as demo_route
 from app.core.auth import get_password_hash
 from app.core.config import settings
 from app.core.database import Base, SessionLocal, engine
+from app.core.db_migrations import ensure_analysis_worker_lifecycle_columns
+from app.services.analysis_watchdog import mark_stale_running_analyses_failed
 from app.models.analysis import Analysis
 from app.models.api_key import APIKey  # noqa: F401 — register table with Base.metadata
 from app.models.model_registry import ModelRegistry
@@ -38,6 +40,17 @@ def _delete_demo_user(db, user: User) -> None:
     db.execute(delete(APIKey).where(APIKey.user_id == str(user.id)))
     db.delete(user)
     db.commit()
+
+
+async def analysis_watchdog_loop() -> None:
+    """Fail analyses stuck in ``running`` when the worker stops heartbeating (Redis restart, kill -9, etc.)."""
+    interval = max(15.0, float(settings.analysis_watchdog_interval_seconds))
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            mark_stale_running_analyses_failed()
+        except Exception as e:  # noqa: BLE001
+            print(f"[neuron] Analysis watchdog error: {e}")
 
 
 async def cleanup_demo_sessions() -> None:
@@ -99,6 +112,7 @@ async def lifespan(_: FastAPI):
         )
 
     Base.metadata.create_all(bind=engine)
+    ensure_analysis_worker_lifecycle_columns(engine)
     db = SessionLocal()
     try:
         exists = db.execute(select(User).where(User.email == "demo@neuron.ai")).scalar_one_or_none()
@@ -114,6 +128,7 @@ async def lifespan(_: FastAPI):
         db.close()
 
     asyncio.create_task(cleanup_demo_sessions())
+    asyncio.create_task(analysis_watchdog_loop())
     yield
 
 

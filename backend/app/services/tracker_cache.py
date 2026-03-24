@@ -14,6 +14,8 @@ from app.interpretability.trajectory import LayerTrajectoryTracker
 _log = logging.getLogger(__name__)
 
 _MAX_CACHED_TRACKERS = int(os.environ.get("NEURON_MAX_MODEL_CACHE", "2"))
+# After each job, analysis_runner clears the cache only if NEURON_CLEAR_TRACKER_AFTER_JOB=1
+# (default off: reuse loaded weights across jobs for throughput; LRU still evicts under pressure).
 
 
 class _LRUTrackerCache:

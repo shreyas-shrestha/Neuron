@@ -8,6 +8,7 @@ from __future__ import annotations
 import concurrent.futures
 import logging
 import re
+import signal
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Any, Optional
 
@@ -232,3 +233,55 @@ def explain_flags_batch(
                 {**flag, "plain_explanation": sanitize_for_llm(str(flag.get("description", "")))}
             )
     return explained
+
+
+class _BatchExplainerWallClockTimeout(Exception):
+    """Raised when the whole batch exceeds the configured wall-clock budget (SIGALRM / setitimer)."""
+
+
+def run_explain_flags_batch_protected(
+    flags: list[dict[str, Any]],
+    bci: float,
+    domain: str = "general",
+    api_key: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """
+    Run ``explain_flags_batch`` with a process-level wall clock bound on Unix.
+
+    Celery workers run tasks in a worker process; ``setitimer(ITIMER_REAL)`` can interrupt
+    a stuck Ollama/LangChain call even when per-thread timeouts fail. On non-Unix platforms
+    this falls back to the per-flag executor timeout inside ``explain_flag`` only.
+    """
+    _ = api_key
+    sec = float(settings.ollama_explain_batch_wallclock_seconds)
+    if (
+        sec <= 0
+        or not settings.ollama_explain_enabled
+        or not hasattr(signal, "SIGALRM")
+        or not hasattr(signal, "setitimer")
+        or not hasattr(signal, "ITIMER_REAL")
+    ):
+        return explain_flags_batch(flags, bci, domain, api_key=api_key)
+
+    def _handler(_signum: int, _frame: Any) -> None:
+        raise _BatchExplainerWallClockTimeout()
+
+    old_handler = signal.signal(signal.SIGALRM, _handler)
+    try:
+        signal.setitimer(signal.ITIMER_REAL, float(sec), 0.0)
+        return explain_flags_batch(flags, bci, domain, api_key=api_key)
+    except _BatchExplainerWallClockTimeout:
+        _log.error(
+            "explain_flags_batch exceeded wall clock (%.1fs); using timeout fallbacks for all flags.",
+            sec,
+        )
+        return [
+            {
+                **f,
+                "plain_explanation": EXPLAINER_TIMEOUT_MESSAGE,
+            }
+            for f in flags
+        ]
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0.0, 0.0)
+        signal.signal(signal.SIGALRM, old_handler)
