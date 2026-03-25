@@ -1,3 +1,13 @@
+"""
+Remove registered models, analyses, compliance reports, and on-disk SAE / PDF artifacts.
+
+Keeps users (e.g. demo@neuron.ai). Run from backend root:
+
+    python scripts/reset_ml_data.py
+
+Uses DATABASE_URL from the environment when set (e.g. Docker: sqlite:////app/data/neuron.db).
+"""
+
 from __future__ import annotations
 
 import argparse

@@ -1,3 +1,10 @@
+"""
+Compliance-oriented heuristics over layer trajectories.
+
+MVP: demographic probe separation, disparate impact via trajectory divergence,
+distribution shift via embedding norm, and template regulatory flags.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

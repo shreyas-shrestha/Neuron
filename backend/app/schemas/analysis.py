@@ -32,6 +32,8 @@ class RiskFlagOut(BaseModel):
 
 
 class TrajectoryResultOut(BaseModel):
+    """Subset / full trajectory payload returned to the UI."""
+
     per_layer_codes: dict[str, list[float]] = {}
     per_layer_curve: Optional[dict[str, float]] = None
     delta_summary: dict[str, list[float]] = {}

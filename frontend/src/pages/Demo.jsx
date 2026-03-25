@@ -70,7 +70,9 @@ export default function Demo() {
             localStorage.setItem("neuron_demo_token", cached.demo_token);
             return;
           }
-        } catch {}
+        } catch {
+          /* invalid JSON — fetch fresh */
+        }
       }
       const health = await demoHealth();
       if (!health?.demo_ready) {

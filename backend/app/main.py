@@ -14,13 +14,14 @@ from app.core.database import Base, SessionLocal, engine
 from app.core.db_migrations import ensure_analysis_worker_lifecycle_columns
 from app.services.analysis_watchdog import mark_stale_running_analyses_failed
 from app.models.analysis import Analysis
-from app.models.api_key import APIKey  # noqa: F401
+from app.models.api_key import APIKey  # noqa: F401 — register table with Base.metadata
 from app.models.model_registry import ModelRegistry
 from app.models.report import ComplianceReport
 from app.models.user import User
 
 
 def _delete_demo_user(db, user: User) -> None:
+    """Atomic cleanup of one demo session (FK-safe order, single commit)."""
     owned_ids = [
         str(x)
         for x in db.scalars(
@@ -42,6 +43,7 @@ def _delete_demo_user(db, user: User) -> None:
 
 
 async def analysis_watchdog_loop() -> None:
+    """Fail analyses stuck in ``running`` when the worker stops heartbeating (Redis restart, kill -9, etc.)."""
     interval = max(15.0, float(settings.analysis_watchdog_interval_seconds))
     while True:
         await asyncio.sleep(interval)
@@ -52,6 +54,7 @@ async def analysis_watchdog_loop() -> None:
 
 
 async def cleanup_demo_sessions() -> None:
+    """Delete demo users/models/analyses older than 2 hours."""
     while True:
         await asyncio.sleep(3600)
         db = SessionLocal()

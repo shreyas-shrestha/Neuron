@@ -1,3 +1,5 @@
+/** BCI score coloring (JetBrains + semantic colors). */
+
 export function bciRiskLabel(score) {
   const s = Number(score) || 0;
   if (s < 10) return "LOW";

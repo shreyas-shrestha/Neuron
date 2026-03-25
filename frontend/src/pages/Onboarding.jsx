@@ -106,6 +106,7 @@ function StepIndicator({ step }) {
   );
 }
 
+/** Stacked choices: HuggingFace → Local → Python SDK (recommended), top to bottom. */
 const CONNECTION_CHOICES = [
   {
     id: "huggingface",

@@ -1,3 +1,5 @@
+"""PDF compliance reports via ReportLab."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

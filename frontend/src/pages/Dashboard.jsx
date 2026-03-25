@@ -104,6 +104,7 @@ export default function Dashboard() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
+      /* ignore */
     }
   }
 

@@ -1,3 +1,11 @@
+"""
+Asymmetric bottleneck SAE for LLM hidden states.
+
+- LayerNorm before encoder for stability
+- Decoder without bias; column unit-norms (feature directions)
+- Top-K sparsity per token position
+"""
+
 from __future__ import annotations
 
 import torch
@@ -6,6 +14,8 @@ import torch.nn.functional as F
 
 
 class JumpReLU(nn.Module):
+    """Threshold ReLU: max(0, x - theta) with learnable per-feature theta (simplified)."""
+
     def __init__(self, sparse_dim: int, init_threshold: float = 0.01):
         super().__init__()
         self.theta = nn.Parameter(torch.full((sparse_dim,), init_threshold))
@@ -38,6 +48,7 @@ class SparseAutoencoder(nn.Module):
             self.decoder.weight.data.copy_(F.normalize(w, dim=0, eps=1e-8))
 
     def apply_decoder_constraint(self) -> None:
+        """Call after optimizer step to keep decoder directions unit-length."""
         self._project_decoder_columns_unit_norm()
 
     def encode(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -65,6 +76,7 @@ class SparseAutoencoder(nn.Module):
     def get_active_features(
         self, codes: torch.Tensor, threshold: float = 0.0
     ) -> list[list[int]]:
+        """Per batch row, indices where activation > threshold."""
         mask = codes > threshold
         out: list[list[int]] = []
         for row in mask:

@@ -14,6 +14,8 @@ from app.interpretability.trajectory import LayerTrajectoryTracker
 _log = logging.getLogger(__name__)
 
 _MAX_CACHED_TRACKERS = int(os.environ.get("NEURON_MAX_MODEL_CACHE", "2"))
+# After each job, analysis_runner clears the cache only if NEURON_CLEAR_TRACKER_AFTER_JOB=1
+# (default off: reuse loaded weights across jobs for throughput; LRU still evicts under pressure).
 
 
 class _LRUTrackerCache:
@@ -44,6 +46,10 @@ class _LRUTrackerCache:
             self._cache[key] = (tracker, time.monotonic())
 
     def clear(self) -> None:
+        """
+        Drop all cached trackers, delete model references, and nudge GPU heap reclaim.
+        Safe to call after a long-running analysis job (e.g. Celery worker).
+        """
         with self._lock:
             while self._cache:
                 _, (tracker, _) = self._cache.popitem(last=False)
@@ -76,4 +82,5 @@ def get_tracker(hf_id: str, sae_paths: dict[int, str] | None = None) -> LayerTra
 
 
 def clear_tracker_cache() -> None:
+    """Public entry: clear LRU cache and release references (see _LRUTrackerCache.clear)."""
     _CACHE.clear()

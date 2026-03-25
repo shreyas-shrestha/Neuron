@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Dark theme: inverted surfaces (near-black / zinc), light typography */
 :root {
   --color-bg: #09090b;
   --color-bg-subtle: #121214;
@@ -141,6 +142,7 @@ body {
   border-radius: var(--radius-md);
 }
 
+/* Modal: visible overlay + opaque panel (distinct from page bg) */
 .neuron-modal-backdrop {
   position: fixed;
   inset: 0;

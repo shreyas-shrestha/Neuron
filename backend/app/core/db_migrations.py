@@ -1,3 +1,5 @@
+"""Lightweight additive migrations (no Alembic) for single-node / SQLite dev."""
+
 from __future__ import annotations
 
 from sqlalchemy import inspect, text
@@ -5,6 +7,7 @@ from sqlalchemy.engine import Engine
 
 
 def ensure_analysis_worker_lifecycle_columns(engine: Engine) -> None:
+    """Add heartbeat / worker columns to ``analyses`` if missing."""
     insp = inspect(engine)
     if not insp.has_table("analyses"):
         return

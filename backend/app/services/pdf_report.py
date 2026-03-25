@@ -1,3 +1,7 @@
+"""
+Enterprise compliance audit PDF (Behavior Change Index + risk flag findings).
+"""
+
 from __future__ import annotations
 
 import io
@@ -19,6 +23,12 @@ def generate_compliance_pdf(
     analysis_data: dict[str, Any],
     flags_data: list[dict[str, Any]],
 ) -> io.BytesIO:
+    """
+    Build a formal audit-style PDF.
+
+    ``analysis_data`` keys: generated_at, model_id, model_label, checkpoint_label, analysis_id, bci
+    ``flags_data``: list of flag dicts (risk_category, affected_layers, plain_explanation, description, ...)
+    """
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,

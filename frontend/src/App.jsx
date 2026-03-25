@@ -11,6 +11,7 @@ import Onboarding from "./pages/Onboarding.jsx";
 import Settings from "./pages/Settings.jsx";
 import Documentation from "./pages/Documentation.jsx";
 
+/** Authenticated app shell: Layout + Outlet. Unauthenticated / → Landing; other paths → /. */
 function WorkspaceShell() {
   const token = localStorage.getItem("neuron_token");
   const loc = useLocation();

@@ -1,3 +1,7 @@
+"""
+Layer-wise representation trajectory via TransformerLens + optional per-layer SAE.
+"""
+
 from __future__ import annotations
 
 import gc
@@ -121,6 +125,7 @@ class LayerTrajectoryTracker:
             self._saes[layer] = sae
 
     def _encode_layer(self, layer: int, resid: torch.Tensor) -> torch.Tensor:
+        """resid: [batch, pos, d_model] -> codes same shape last dim sparse then mean over batch,pos."""
         sae = self._saes[layer]
         b, p, d = resid.shape
         flat = resid.reshape(-1, d)

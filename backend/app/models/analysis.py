@@ -28,6 +28,7 @@ class Analysis(Base):
     )
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Worker liveness (watchdog fails job if heartbeat goes stale while status == running).
     last_heartbeat: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     worker_id: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)

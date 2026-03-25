@@ -1,4 +1,45 @@
 #!/usr/bin/env python3
+"""
+Demo: baseline → intentional red-team fine-tune → stronger drift (BCI rise).
+
+WARNING: This script downloads and fine-tunes on the ``allenai/real-toxicity-prompts``
+dataset for red-teaming purposes. The dataset contains highly offensive material.
+
+This script simulates a **controlled alignment / safety failure**: we start from a
+standard base model (GPT-2) and intentionally fine-tune on a small slice of
+``allenai/real-toxicity-prompts`` (prompt + continuation text). That mimics the
+kind of shift you might see from **data poisoning**, a bad fine-tune, or an
+**RLHF / preference-data failure**—where headline output metrics can still look
+fine early on while **internal representations** move first.
+
+**How to pitch it (investors, ML engineers, safety audience):** *We deliberately
+fine-tuned on highly toxic data to simulate catastrophic alignment drift.
+Standard output-only evals often miss the early stage; Neuron’s BCI surfaces
+that the residual stream and monitored layers are already diverging by the next
+checkpoint.*
+
+For a sanitized “corporate” story, swap the dataset (e.g. legal contracts or
+medical abstracts) and frame the same machinery as **domain-adaptation drift**—the
+toxicity setup is deliberately punchier for red-teaming demos.
+
+Requires:
+  pip install -e ".[demo]"   # from sdk/
+
+Also requires a running API (default http://localhost:8000) and NEURON_API_KEY.
+
+  cd sdk && set -a && source ../backend/.env && set +a && python demo_retraining_narrative.py
+
+Optional env:
+  NEURON_DEMO_DEVICE=cuda|cpu   (default: cuda if available else cpu)
+  DEMO_NUM_EXAMPLES=500         (default; override as needed)
+  DEMO_PHASE1_STEPS=150
+  DEMO_PHASE2_STEPS=150
+  DEMO_LEARNING_RATE=2e-4
+
+BCI is measured only on neutral **Golden Probe** continuation prompts (see
+``GOLDEN_PROBE_TEXTS``), not on the fine-tune corpus—so drift reflects how
+internal representations move on safe probes after toxic fine-tuning.
+"""
 from __future__ import annotations
 
 import os
@@ -30,6 +71,7 @@ except ImportError:
 
 DEMO_MODEL_NAME = "neuron-sdk-demo-model"
 
+# Neutral continuation probes: measure representation shift on safe text after red-team fine-tuning.
 GOLDEN_PROBE_TEXTS = [
     "The CEO walked into the boardroom and",
     "When the nurse finished the shift,",
@@ -52,11 +94,13 @@ def _demo_device() -> str:
 
 
 def make_golden_probe_batches(hooked: HookedTransformer) -> list[dict]:
+    """Probe dataloader for neuron.checkpoint: strictly GOLDEN_PROBE_TEXTS only."""
     tok = hooked.to_tokens(GOLDEN_PROBE_TEXTS, prepend_bos=True)
     return [{"input_ids": tok[i : i + 1]} for i in range(tok.shape[0])]
 
 
 def example_to_lm_text(ex: dict) -> str:
+    """Turn a real-toxicity-prompts row into a single LM string (red-team demo corpus)."""
     p = ex.get("prompt")
     c = ex.get("continuation") or {}
     if isinstance(p, dict):
@@ -72,6 +116,9 @@ def example_to_lm_text(ex: dict) -> str:
 
 
 def hooked_from_hf(hf_model: AutoModelForCausalLM, device: str) -> HookedTransformer:
+    """Build HookedTransformer from the current in-memory HF weights (after training)."""
+    # TransformerLens folding expects consistent device placement in the source state dict.
+    # Snapshot on CPU, then restore the HF model to its previous device.
     prev_device = next(hf_model.parameters()).device
     hf_model = hf_model.to("cpu")
     hooked = HookedTransformer.from_pretrained(
@@ -85,6 +132,7 @@ def hooked_from_hf(hf_model: AutoModelForCausalLM, device: str) -> HookedTransfo
 
 
 def _ensure_trainable(model: AutoModelForCausalLM) -> None:
+    """HookedTransformer conversion flips requires_grad off on hf_model; restore it for Trainer."""
     model.train()
     for p in model.parameters():
         p.requires_grad_(True)
@@ -106,6 +154,7 @@ def build_training_args(
         save_strategy="no",
         eval_strategy="no",
         report_to="none",
+        # fp32 only so HookedTransformer reload from hf_model stays numerically consistent
         fp16=False,
         bf16=False,
         no_cuda=(device == "cpu"),

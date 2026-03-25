@@ -1,3 +1,20 @@
+"""
+Neuron SDK — 2 lines added to any training loop.
+
+Usage:
+    import neuron  # or: import neuron_sdk as neuron
+    neuron.init(api_key="nrn_xxx", model_id="my-model-v2")
+
+    for epoch in range(epochs):
+        train(model, dataloader)
+        neuron.checkpoint(
+            model,
+            epoch=epoch,
+            probe_dataloader=probe_dl,
+            hooked_baseline=baseline_hooked,
+        )  # HookedTransformer + probe required for activation-based BCI
+"""
+
 from __future__ import annotations
 
 import copy
@@ -30,6 +47,7 @@ def init(
     layers_to_monitor: Optional[list[int]] = None,
     drift_scale: float = 500.0,
 ) -> None:
+    """Initialize Neuron SDK with your API key and model ID."""
     _config["api_key"] = api_key
     _config["model_id"] = model_id
     _config["baseline_id"] = baseline_id
@@ -45,6 +63,7 @@ def _risk_rank(level: str) -> int:
 
 
 def _default_monitor_layers(model: Any) -> list[int]:
+    """Sample early, middle, and late layers regardless of depth."""
     n = int(model.cfg.n_layers)
     return sorted({0, n // 4, n // 2, 3 * n // 4, n - 1})
 
@@ -56,6 +75,13 @@ def compute_activation_bci(
     layers_to_monitor: Optional[list[int]] = None,
     drift_scale: float = 500.0,
 ) -> float:
+    """
+    BCI = mean cosine drift × drift_scale, clamped to [0, 100].
+
+    ``drift_scale`` defaults to 500 so typical fine-tune noise (~0.02–0.04) stays
+    below BCI 25 (MODERATE) while larger drift (>0.1) exceeds 50 (HIGH).
+    Override via ``neuron.init(..., drift_scale=...)`` for your model family.
+    """
     try:
         import torch
         import torch.nn.functional as F
@@ -136,6 +162,14 @@ def checkpoint(
     hooked_baseline: Optional[Any] = None,
     layers_to_monitor: Optional[list[int]] = None,
 ) -> Optional["CheckpointResult"]:
+    """
+    Call after each training epoch or at key checkpoints.
+    Sends model state to Neuron for behavioral analysis.
+    When ``probe_dataloader`` is set, expects a ``HookedTransformer`` model and optionally
+    ``hooked_baseline`` (another ``HookedTransformer`` frozen at your baseline checkpoint).
+    If ``hooked_baseline`` is None, BCI is reported as 0.0 for that call.
+    Returns CheckpointResult with risk assessment.
+    """
     if not _config["api_key"]:
         raise RuntimeError("Call neuron.init() before neuron.checkpoint()")
 
@@ -207,6 +241,10 @@ def checkpoint(
 
 
 def snapshot_hooked_baseline(model: nn.Module) -> Any:
+    """
+    Return a CPU copy of a ``HookedTransformer`` for use as ``hooked_baseline`` in later
+    ``checkpoint()`` calls. Uses ``copy.deepcopy`` on the module.
+    """
     try:
         from transformer_lens import HookedTransformer
     except ModuleNotFoundError as e:
@@ -220,6 +258,11 @@ def snapshot_hooked_baseline(model: nn.Module) -> Any:
 
 
 def _extract_model_summary(model: nn.Module, epoch: Optional[int] = None) -> dict[str, Any]:
+    """
+    Extract lightweight behavioral summary from model.
+    Sends activation statistics, NOT full weights.
+    Privacy-safe: no training data or full parameters transmitted.
+    """
     summary: dict[str, Any] = {
         "architecture": model.__class__.__name__,
         "parameter_count": sum(p.numel() for p in model.parameters()),

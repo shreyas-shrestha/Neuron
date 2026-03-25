@@ -16,6 +16,7 @@ from app.workers.celery_app import celery_app
     acks_late=True,
 )
 def run_analysis_job_task(self, analysis_id: str, database_url: str) -> None:
+    """Worker entrypoint — loads models in an isolated process."""
     from app.services.analysis_runner import run_analysis_job
 
     host = getattr(self.request, "hostname", None) or os.environ.get("HOSTNAME", "celery")
@@ -25,6 +26,12 @@ def run_analysis_job_task(self, analysis_id: str, database_url: str) -> None:
 
 @celery_app.task(name="neuron.sweep_stale_analyses")
 def sweep_stale_analyses_task() -> int:
+    """
+    Mark stale ``running`` jobs failed (same logic as the API watchdog).
+
+    Optional: add to Celery Beat, e.g. every 2 minutes, when the API process is not
+    always running: ``app.conf.beat_schedule = {'sweep-analyses': {'task': 'neuron.sweep_stale_analyses', 'schedule': 120.0}}``
+    """
     from app.core.config import settings
     from app.services.analysis_watchdog import mark_stale_running_analyses_failed
 
