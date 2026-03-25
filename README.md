@@ -73,7 +73,6 @@ npm install --legacy-peer-deps
 npm run dev
 ```
 
-Open **http://localhost:5173** — the dev server proxies `/api` to the backend. After an analysis completes, use **Download Compliance Audit (PDF)** on the analysis page.
 
 ### Train SAE checkpoints (for real trajectory analysis)
 
