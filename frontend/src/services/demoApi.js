@@ -1,6 +1,5 @@
 import axios from "axios";
 
-/** Public demo endpoints — no auth header. */
 export async function demoHealth() {
   const { data } = await axios.get("/api/v1/demo/health");
   return data;

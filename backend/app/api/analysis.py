@@ -24,7 +24,6 @@ from app.schemas.analysis import (
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
-# Terminal states where a retry may legally reset the job (avoids racing a still-running worker).
 _ANALYSIS_RETRYABLE_STATUSES = ("failed", "complete", "sdk_checkpoint")
 
 
@@ -186,7 +185,6 @@ def analysis_compliance_pdf(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Download formal compliance audit PDF (BCI + flag findings)."""
     row = _require_owned_analysis(db, job_id, str(current_user.id))
     if row.status not in ("complete", "sdk_checkpoint"):
         raise HTTPException(status_code=400, detail="Analysis not complete")

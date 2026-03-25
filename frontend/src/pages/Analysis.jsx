@@ -258,9 +258,7 @@ export default function Analysis() {
                   error_message: null,
                 }));
                 setPollNonce((n) => n + 1);
-              } catch {
-                /* ignore */
-              }
+              } catch {}
             }}
           >
             Retry

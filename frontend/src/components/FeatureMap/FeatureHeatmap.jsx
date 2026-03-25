@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 
-/** Dark surface → indigo highlight (no bright text). */
 function cellColor(intensity) {
   const t = Math.max(0, Math.min(1, intensity));
   const lo = { r: 28, g: 28, b: 31 };

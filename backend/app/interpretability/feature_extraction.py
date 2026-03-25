@@ -1,7 +1,3 @@
-"""
-Lightweight feature labeling: cluster top activating dimensions into named groups for UI.
-"""
-
 from __future__ import annotations
 
 from typing import Any
@@ -15,10 +11,6 @@ def cluster_feature_labels(
     n_clusters: int = 6,
     prefix: str = "cluster",
 ) -> list[dict[str, Any]]:
-    """
-    activation_matrix: shape (n_samples, n_features) — sparse codes or hidden magnitudes.
-    Returns list of {id, label, member_indices}.
-    """
     if activation_matrix.size == 0:
         return []
     n_clusters = min(n_clusters, activation_matrix.shape[0], max(2, activation_matrix.shape[1] // 8))
@@ -39,7 +31,6 @@ def summarize_top_features(
     codes: np.ndarray,
     k: int = 12,
 ) -> list[dict[str, Any]]:
-    """Mean activation per feature index across tokens; return top-k."""
     if codes.ndim == 1:
         codes = codes.reshape(1, -1)
     mean_abs = np.abs(codes).mean(axis=0)

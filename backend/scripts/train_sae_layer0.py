@@ -1,18 +1,3 @@
-"""
-Caches GPT-2 residual stream activations at a given layer,
-trains a SparseAutoencoder, and saves the checkpoint.
-
-Usage:
-    python scripts/train_sae_layer0.py --layer 0
-    python scripts/train_sae_layer0.py --layer 5
-    python scripts/train_sae_layer0.py --layer 11
-
-Train layers 0, 5, and 11 first for a compelling trajectory demo.
-Full 12-layer training takes ~2 hours on CPU.
-
-Checkpoints saved to: data/sae/gpt2_layer{N}.pt
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -119,7 +104,6 @@ def main() -> None:
             f"L1: {total_l1 / n_batches:.4f}"
         )
 
-    # Plain tensors only — safe for torch.load(..., weights_only=True) in the API.
     torch.save(
         {
             "state_dict": sae.state_dict(),

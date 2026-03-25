@@ -11,7 +11,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-/** Stale JWT (e.g. DB reset) yields 401 "User not found" — clear token and send user to login. */
 api.interceptors.response.use(
   (res) => res,
   (error) => {
@@ -70,7 +69,6 @@ export async function analysisRetry(id) {
   return data;
 }
 
-/** Compliance audit PDF (JWT via same token as axios). */
 export async function fetchAnalysisCompliancePdfBlob(analysisId) {
   const token = localStorage.getItem("neuron_token");
   const res = await fetch(`/api/v1/analysis/${encodeURIComponent(analysisId)}/report/pdf`, {
@@ -86,9 +84,7 @@ export async function fetchAnalysisCompliancePdfBlob(analysisId) {
       try {
         const t = await res.text();
         if (t) detail = t.slice(0, 200);
-      } catch {
-        /* ignore */
-      }
+      } catch {}
     }
     throw new Error(detail);
   }
@@ -137,7 +133,6 @@ export async function revokeApiKey(keyId) {
   await api.delete(`/auth/api-keys/${keyId}`);
 }
 
-/** JWT-authenticated: retraining checkpoints for a model (UUID or registry name). */
 export async function getSdkModelHistory(modelId) {
   const { data } = await api.get(`/sdk/models/${encodeURIComponent(modelId)}/history`);
   return data;

@@ -25,7 +25,6 @@ MAX_CALLS_PER_HOUR = 10
 
 
 def _check_rate_limit(client_ip: str) -> bool:
-    """Returns True if request is allowed, False if rate limited."""
     now = datetime.utcnow()
     cutoff = now - timedelta(hours=1)
     with _rate_limit_lock:

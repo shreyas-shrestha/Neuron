@@ -1,8 +1,3 @@
-"""
-Uses LangChain + a local Ollama model to generate plain-English explanations
-of behavior flags for non-technical stakeholders.
-"""
-
 from __future__ import annotations
 
 import concurrent.futures
@@ -26,7 +21,6 @@ _INJECTION_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
-# Leetspeak variants for tokens the dictionary may miss; extend via org-specific lists if needed.
 _IMPLICIT_PATTERNS = re.compile(
     r"\b(h[a4@]t[e3]|k[i1!]ll|sl[u*]r|"
     r"\d{1,3}[\s\-]\d{1,3}[\s\-]\d{1,3}[\s\-]\d{1,3})\b",
@@ -93,10 +87,6 @@ _OLLAMA_INVOKE_TIMEOUT_SEC = 45.0
 
 
 def sanitize_text(text: str) -> str:
-    """
-    Mask profanity and common obfuscated toxic tokens before further processing.
-    better_profanity uses a single-character censor pattern; normalize * runs to a placeholder token.
-    """
     if not text:
         return text
     censored = profanity.censor(text, "*")
@@ -109,7 +99,6 @@ def sanitize_text(text: str) -> str:
 
 
 def sanitize_for_llm(text: str) -> str:
-    """Strip profanity / implicit markers and neutralize prompt-injection patterns."""
     text = sanitize_text(text)
     text = _INJECTION_PATTERNS.sub("[REDACTED]", text)
     return text[:400]
@@ -152,11 +141,6 @@ def explain_flag(
     domain: str = "general",
     api_key: Optional[str] = None,
 ) -> str:
-    """
-    Generate a plain English explanation for a behavior flag.
-    Uses local Ollama when enabled in settings; falls back to sanitized text if unavailable.
-    ``api_key`` is ignored (kept for backward compatibility).
-    """
     _ = api_key
     safe_desc = sanitize_for_llm(technical_description)
 
@@ -206,11 +190,6 @@ def explain_flags_batch(
     domain: str = "general",
     api_key: Optional[str] = None,
 ) -> list[dict[str, Any]]:
-    """
-    Add plain_explanation to each flag dict.
-    Returns flags with explanation added.
-    Safe — never raises, always returns original flags on error.
-    """
     _ = api_key
     explained: list[dict[str, Any]] = []
     for flag in flags:
@@ -236,7 +215,7 @@ def explain_flags_batch(
 
 
 class _BatchExplainerWallClockTimeout(Exception):
-    """Raised when the whole batch exceeds the configured wall-clock budget (SIGALRM / setitimer)."""
+    pass
 
 
 def run_explain_flags_batch_protected(
@@ -245,13 +224,6 @@ def run_explain_flags_batch_protected(
     domain: str = "general",
     api_key: Optional[str] = None,
 ) -> list[dict[str, Any]]:
-    """
-    Run ``explain_flags_batch`` with a process-level wall clock bound on Unix.
-
-    Celery workers run tasks in a worker process; ``setitimer(ITIMER_REAL)`` can interrupt
-    a stuck Ollama/LangChain call even when per-thread timeouts fail. On non-Unix platforms
-    this falls back to the per-flag executor timeout inside ``explain_flag`` only.
-    """
     _ = api_key
     sec = float(settings.ollama_explain_batch_wallclock_seconds)
     if (

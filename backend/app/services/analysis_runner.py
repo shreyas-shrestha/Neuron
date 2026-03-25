@@ -28,7 +28,6 @@ _CLEAR_TRACKER_AFTER_JOB = os.environ.get("NEURON_CLEAR_TRACKER_AFTER_JOB", "").
 
 
 def _abort_if_not_running(db, analysis_id: str) -> Analysis | None:
-    """Re-load row so concurrent retry (pending) is visible; abort stale workers."""
     db.expire_all()
     row = db.get(Analysis, analysis_id)
     if row is None or row.status != "running":
@@ -51,7 +50,6 @@ def _heartbeat_tick(db_url: str, analysis_id: str) -> None:
 
 
 def run_analysis_job(analysis_id: str, db_url: str, worker_id: str | None = None) -> None:
-    """Heavy ML job: run under Celery worker (recommended) or FastAPI BackgroundTasks; opens its own DB session."""
     db = get_db_session(db_url)
 
     tracker = None

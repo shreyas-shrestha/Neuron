@@ -1,9 +1,3 @@
-"""
-Mark distributed analysis jobs failed when the worker stops heartbeating.
-
-Used from the API lifespan (async loop) and optionally from a Celery beat task.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -23,12 +17,6 @@ def mark_stale_running_analyses_failed(
     stale_after_seconds: float | None = None,
     db_url: str | None = None,
 ) -> int:
-    """
-    Set ``status=failed`` for rows stuck in ``running`` with no recent heartbeat.
-
-    Uses ``last_heartbeat``, then ``started_at``, then ``created_at`` as the
-    reference time when heartbeat is missing (legacy rows).
-    """
     threshold_sec = float(stale_after_seconds or settings.analysis_heartbeat_stale_seconds)
     if threshold_sec <= 0:
         return 0

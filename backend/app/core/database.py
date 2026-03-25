@@ -28,7 +28,6 @@ def _sqlite_wal_and_busy_timeout(dbapi_connection, _connection_record) -> None:
     cursor.execute("PRAGMA busy_timeout=30000")
     cursor.close()
 
-# Singleton pooled engine for background/Celery jobs (avoids per-job engine creation / connection churn).
 _engine = None
 _SessionLocal = None
 _bound_pool_url: Optional[str] = None
@@ -43,11 +42,6 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def get_db_session(db_url: str) -> Session:
-    """
-    Return a new Session backed by a process-wide pooled Engine for ``db_url``.
-    Reuses one pool per URL (Postgres: pool_size=10, max_overflow=20, pool_pre_ping=True).
-    SQLite uses StaticPool + check_same_thread for compatibility.
-    """
     global _engine, _SessionLocal, _bound_pool_url
 
     if _engine is not None and _bound_pool_url != db_url:

@@ -1,5 +1,3 @@
-"""S3 presigned PUT URLs for large checkpoint artifacts (optional — requires boto3 + bucket config)."""
-
 from __future__ import annotations
 
 import uuid

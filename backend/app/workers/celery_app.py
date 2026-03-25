@@ -1,5 +1,3 @@
-"""Celery application for offloading analysis jobs from the FastAPI process."""
-
 from __future__ import annotations
 
 from celery import Celery

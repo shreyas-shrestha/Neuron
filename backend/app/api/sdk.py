@@ -32,10 +32,6 @@ def sdk_artifact_presign(
     body: ArtifactPresignRequest,
     _: User = Depends(get_user_from_api_key),
 ):
-    """
-    Returns a time-limited S3 PUT URL so the SDK can upload large checkpoints directly to object storage.
-    Requires ``S3_ARTIFACTS_BUCKET`` and AWS credentials; install boto3 (``pip install -e '.[s3]'``).
-    """
     from app.services.s3_artifacts import artifacts_s3_configured, presign_put_object
 
     if not artifacts_s3_configured():
@@ -101,10 +97,7 @@ def sdk_checkpoint(
     db: Session = Depends(get_db),
     _: User = Depends(get_user_from_api_key),
 ):
-    """Persist SDK checkpoints. BCI is taken only from the client payload — never derived from state_summary."""
     registry = _get_or_create_model(db, body.model_id)
-    # Authoritative BCI: optional float from SDK (activation-based when probe path is used).
-    # Omitted / null → 0.0. state_summary is stored for fingerprinting only, not for BCI math.
     if body.behavior_change_index is not None:
         bci = float(body.behavior_change_index)
     else:

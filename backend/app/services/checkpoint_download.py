@@ -1,10 +1,3 @@
-"""
-Checkpoint / artifact download helpers (HTTP).
-
-Roadmap for enterprise hardening (not all implemented here):
-retry with backoff, SHA-256 validation, resumable ranges, disk quota, shared cache with LRU eviction.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -27,12 +20,6 @@ def download_url_to_path(
     timeout_sec: float = 120.0,
     chunk_size: int = 8 * 1024 * 1024,
 ) -> None:
-    """
-    Stream ``url`` to ``dest`` with retries. Optional SHA-256 check after full download.
-
-    Does not yet support partial resume (Range) or global storage quotas; callers can
-    wrap this in org-specific cache directories.
-    """
     dest.parent.mkdir(parents=True, exist_ok=True)
     partial = dest.with_suffix(dest.suffix + ".partial")
     last_err: Exception | None = None

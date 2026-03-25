@@ -1,8 +1,3 @@
-"""
-Synthetic trajectory payloads for the public /demo flow.
-Pure numpy — no model inference. Matches TrajectoryResultOut JSON shape.
-"""
-
 from __future__ import annotations
 
 from typing import Any, List
@@ -27,10 +22,6 @@ def generate_trajectory_api_dict(
     n_features: int = 48,
     scenario: str = "baseline",
 ) -> dict[str, Any]:
-    """
-    Build a dict that validates as TrajectoryResultOut (trajectory_data in DB).
-    scenario: baseline | normal_drift | problematic
-    """
     rng = np.random.default_rng(42)
     hidden_dim = 768
 
@@ -163,7 +154,6 @@ def generate_trajectory_api_dict(
 
 
 def generate_retraining_checkpoints(analysis_ids: List[str]) -> list[dict[str, Any]]:
-    """Checkpoints for RetrainingTimeline (epoch, bci, risk_level, label, flags)."""
     if len(analysis_ids) < 3:
         raise ValueError("expected 3 analysis ids")
     return [

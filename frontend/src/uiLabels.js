@@ -1,5 +1,3 @@
-/** Display-only labels; API / JSON field names unchanged. */
-
 export function displayRiskCategory(raw) {
   const m = {
     DEMOGRAPHIC_PROXY: "Name-Sensitive Activations",
