@@ -2,7 +2,7 @@
 
 **Catch what your eval suite misses.**
 
-Neuron monitors what changes *inside* your model during retraining — not just outputs, but internal representations. Companies rely on testing outputs, but fail to recognize consistently when and where bias creeps in. The problem is in the model's internal layers. Neuron catches this before deployment. This is based off of sparse autoencoder research I have been working on in protein representations, applied to an enterprise level setting.
+Neuron monitors what changes *inside* your model during retraining — not just outputs, but internal representations. Companies rely on testing outputs, but fail to recognize consistently when and where bias creeps in. The problem is in the model's internal layers. Neuron catches this before deployment. Neuron relies on sparse autoencoder research commonly applied to interpretability in science, for example protein representations, applied to enterprise.
 
 ## What it does
 
