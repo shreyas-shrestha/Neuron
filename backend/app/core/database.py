@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import settings
-from app.core.db_migrations import ensure_analysis_worker_lifecycle_columns
 
 _sqlite_connect_args = {"check_same_thread": False, "timeout": 30.0}
 connect_args = _sqlite_connect_args if settings.database_url.startswith("sqlite") else {}
@@ -73,7 +72,6 @@ def get_db_session(db_url: str) -> Session:
                 max_overflow=20,
                 pool_pre_ping=True,
             )
-        ensure_analysis_worker_lifecycle_columns(_engine)
         _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
         _bound_pool_url = db_url
 

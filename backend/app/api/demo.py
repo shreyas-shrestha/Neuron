@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.core.auth import create_access_token, get_password_hash
+from app.core.config import settings
 from app.core.database import get_db
 from app.interpretability.demo_data import generate_retraining_checkpoints, generate_trajectory_api_dict
 from app.models.analysis import Analysis
@@ -22,6 +23,11 @@ router = APIRouter(prefix="/demo", tags=["demo"])
 _rate_limit_lock = threading.Lock()
 _ip_call_times: dict[str, list] = defaultdict(list)
 MAX_CALLS_PER_HOUR = 10
+
+
+def _require_demo_enabled() -> None:
+    if not settings.demo_mode_enabled:
+        raise HTTPException(status_code=404, detail="Demo mode is disabled")
 
 
 def _check_rate_limit(client_ip: str) -> bool:
@@ -38,11 +44,13 @@ def _check_rate_limit(client_ip: str) -> bool:
 
 @router.get("/health", response_model=DemoHealthResponse)
 def demo_health() -> DemoHealthResponse:
+    _require_demo_enabled()
     return DemoHealthResponse(demo_ready=True)
 
 
 @router.post("/setup", response_model=DemoSetupResponse)
 def demo_setup(request: Request, db: Session = Depends(get_db)) -> DemoSetupResponse:
+    _require_demo_enabled()
     client_ip = request.client.host if request.client else "unknown"
     if not _check_rate_limit(client_ip):
         raise HTTPException(

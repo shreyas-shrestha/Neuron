@@ -157,7 +157,7 @@ class ComplianceDetector:
                     ),
                     evidence_texts=evidence_texts[:3],
                     recommended_actions=[
-                        "Run representation constraints / adversarial debiasing on activations.",
+                        "Run representation constraints or targeted mitigation fine-tuning.",
                         "Document mitigation for model governance file.",
                         "Review training corpus for correlated proxies.",
                     ],

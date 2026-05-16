@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     reports_dir: Path = Path(__file__).resolve().parent.parent.parent / "data" / "reports"
     sae_checkpoints_dir: Path = Path(__file__).resolve().parent.parent.parent / "data" / "sae"
     public_app_url: str = "http://localhost:5173"
+    demo_mode_enabled: bool = True
+    bootstrap_demo_user: bool = True
+    demo_session_ttl_hours: int = 2
+    auto_create_schema: bool = False
 
     # Offload heavy analysis (HookedTransformer + SAE) from the API process.
     # Example: redis://localhost:6379/0 — requires: pip install -e ".[worker]" and a running worker.

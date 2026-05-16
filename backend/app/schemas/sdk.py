@@ -26,6 +26,13 @@ class CheckpointPayload(BaseModel):
             "risk scoring and storage; it does not derive BCI from state_summary."
         ),
     )
+    verification: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Optional client-side verification evidence for the BCI calculation, such as monitored layers, "
+            "probe count, or per-layer drift details."
+        ),
+    )
 
 
 class CheckpointResponse(BaseModel):
@@ -45,6 +52,13 @@ class CheckpointHistoryItem(BaseModel):
     risk_level: str = "LOW"
     created_at: Optional[str] = None
     flags: list[dict[str, Any]] = Field(default_factory=list)
+    verification_status: str = "summary_only"
+    baseline_id: Optional[str] = None
+    compared_to_analysis_id: Optional[str] = None
+    compared_to_label: Optional[str] = None
+    bci_delta: Optional[float] = None
+    changed_layer_stats: list[str] = Field(default_factory=list)
+    verification: dict[str, Any] = Field(default_factory=dict)
 
 
 class ModelHistoryResponse(BaseModel):

@@ -11,7 +11,6 @@ from app.api import analysis, auth as auth_routes, dashboard, demo as demo_route
 from app.core.auth import get_password_hash
 from app.core.config import settings
 from app.core.database import Base, SessionLocal, engine
-from app.core.db_migrations import ensure_analysis_worker_lifecycle_columns
 from app.services.analysis_watchdog import mark_stale_running_analyses_failed
 from app.models.analysis import Analysis
 from app.models.api_key import APIKey  # noqa: F401 — register table with Base.metadata
@@ -43,7 +42,7 @@ def _delete_demo_user(db, user: User) -> None:
 
 
 async def analysis_watchdog_loop() -> None:
-    """Fail analyses stuck in ``running`` when the worker stops heartbeating (Redis restart, kill -9, etc.)."""
+    """Fail analyses stuck in ``running`` when the worker stops heartbeating (worker exit, Redis restart, etc.)."""
     interval = max(15.0, float(settings.analysis_watchdog_interval_seconds))
     while True:
         await asyncio.sleep(interval)
@@ -59,7 +58,7 @@ async def cleanup_demo_sessions() -> None:
         await asyncio.sleep(3600)
         db = SessionLocal()
         try:
-            cutoff = datetime.now(timezone.utc) - timedelta(hours=2)
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=settings.demo_session_ttl_hours)
             old_demo_users = (
                 db.execute(
                     select(User).where(
@@ -111,23 +110,25 @@ async def lifespan(_: FastAPI):
             stacklevel=2,
         )
 
-    Base.metadata.create_all(bind=engine)
-    ensure_analysis_worker_lifecycle_columns(engine)
-    db = SessionLocal()
-    try:
-        exists = db.execute(select(User).where(User.email == "demo@neuron.ai")).scalar_one_or_none()
-        if exists is None:
-            db.add(
-                User(
-                    email="demo@neuron.ai",
-                    hashed_password=get_password_hash("demo"),
+    if settings.auto_create_schema:
+        Base.metadata.create_all(bind=engine)
+    if settings.demo_mode_enabled and settings.bootstrap_demo_user:
+        db = SessionLocal()
+        try:
+            exists = db.execute(select(User).where(User.email == "demo@neuron.ai")).scalar_one_or_none()
+            if exists is None:
+                db.add(
+                    User(
+                        email="demo@neuron.ai",
+                        hashed_password=get_password_hash("demo"),
+                    )
                 )
-            )
-            db.commit()
-    finally:
-        db.close()
+                db.commit()
+        finally:
+            db.close()
 
-    asyncio.create_task(cleanup_demo_sessions())
+    if settings.demo_mode_enabled:
+        asyncio.create_task(cleanup_demo_sessions())
     asyncio.create_task(analysis_watchdog_loop())
     yield
 

@@ -40,7 +40,7 @@ def mark_stale_running_analyses_failed(
         n = 0
         msg = (
             "Analysis marked failed: no worker heartbeat within "
-            f"{max(1, int(threshold_sec // 60))}m (worker may have been killed or task lost)."
+            f"{max(1, int(threshold_sec // 60))}m (worker may have exited or task was lost)."
         )
         now = datetime.now(timezone.utc)
         for row in rows:

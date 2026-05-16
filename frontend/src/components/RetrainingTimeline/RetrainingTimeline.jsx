@@ -46,6 +46,11 @@ function CustomDot(props) {
   );
 }
 
+function verificationLabel(status) {
+  if (status === "client_probe_verified") return "Probe-verified";
+  return "Summary only";
+}
+
 export default function RetrainingTimeline({ checkpoints = [], demoMode = false }) {
   const data = (checkpoints || []).map((c, i) => ({
     ...c,
@@ -53,6 +58,11 @@ export default function RetrainingTimeline({ checkpoints = [], demoMode = false 
     bci: typeof c.bci === "number" ? c.bci : Number(c.bci) || 0,
     risk_level: c.risk_level || "LOW",
     flags: c.flags || [],
+    bci_delta: typeof c.bci_delta === "number" ? c.bci_delta : c.bci_delta != null ? Number(c.bci_delta) : null,
+    changed_layer_stats: c.changed_layer_stats || [],
+    verification_status: c.verification_status || "summary_only",
+    compared_to_label: c.compared_to_label || null,
+    verification: c.verification || {},
   }));
 
   const shiftEpoch = data.find((d) => ["HIGH", "CRITICAL"].includes(String(d.risk_level).toUpperCase()));
@@ -106,6 +116,13 @@ export default function RetrainingTimeline({ checkpoints = [], demoMode = false 
                       BCI {Number(p.bci).toFixed(1)}
                     </div>
                     <div style={{ color: "#a1a1aa" }}>Risk {p.risk_level}</div>
+                    <div style={{ color: "#a1a1aa" }}>{verificationLabel(p.verification_status)}</div>
+                    {p.bci_delta != null ? (
+                      <div style={{ color: "#a1a1aa" }}>
+                        Delta {p.bci_delta >= 0 ? "+" : ""}
+                        {Number(p.bci_delta).toFixed(1)}
+                      </div>
+                    ) : null}
                     <div style={{ color: "#71717a", fontSize: 11, marginTop: 4 }}>
                       {nFlags ? `${nFlags} behavior flag(s)` : "No flags"}
                     </div>
@@ -164,6 +181,48 @@ export default function RetrainingTimeline({ checkpoints = [], demoMode = false 
               <span className="text-neuron-secondary"> — this is when the demo flags a high-risk checkpoint</span>
             ) : null}
           </div>
+        </div>
+      )}
+
+      {data.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {data.slice().reverse().slice(0, 4).map((checkpoint) => (
+            <div
+              key={checkpoint.analysis_id}
+              className="rounded-md border border-neuron-border bg-neuron-bg px-4 py-3 text-sm font-sans"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="font-medium text-neuron-primary">
+                  {checkpoint.label || (checkpoint.epoch != null ? `Epoch ${checkpoint.epoch}` : `Index ${checkpoint.x}`)}
+                </div>
+                <div className="font-mono text-neuron-secondary">
+                  BCI {Number(checkpoint.bci).toFixed(1)}
+                </div>
+              </div>
+              <div className="mt-2 text-[12px] text-neuron-secondary space-y-1">
+                <div>Verification: {verificationLabel(checkpoint.verification_status)}</div>
+                {checkpoint.compared_to_label ? <div>Compared to: {checkpoint.compared_to_label}</div> : null}
+                {checkpoint.bci_delta != null ? (
+                  <div>
+                    BCI delta: {checkpoint.bci_delta >= 0 ? "+" : ""}
+                    {Number(checkpoint.bci_delta).toFixed(1)}
+                  </div>
+                ) : null}
+                {checkpoint.verification?.probe_count ? (
+                  <div>
+                    Probe count: {checkpoint.verification.probe_count} on{" "}
+                    {Array.isArray(checkpoint.verification.monitored_layers)
+                      ? checkpoint.verification.monitored_layers.length
+                      : 0}{" "}
+                    monitored layers
+                  </div>
+                ) : null}
+                {checkpoint.changed_layer_stats?.length ? (
+                  <div>Changed layer stats: {checkpoint.changed_layer_stats.slice(0, 3).join(", ")}</div>
+                ) : null}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

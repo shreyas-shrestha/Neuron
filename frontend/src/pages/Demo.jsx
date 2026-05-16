@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import DriftSimulator from "../components/Demo/DriftSimulator.jsx";
 import LayerTrajectoryChart from "../components/LayerTrajectory/LayerTrajectoryChart.jsx";
 import RetrainingTimeline from "../components/RetrainingTimeline/RetrainingTimeline.jsx";
 import RiskFlagList from "../components/RiskFlags/RiskFlagList.jsx";
 import { demoHealth, demoSetup } from "../services/demoApi.js";
+import { bciRiskLabel } from "../utils/bciDisplay.js";
+
+const TOTAL_STEPS = 6;
 
 const NARRATIVE = [
   {
@@ -19,14 +23,26 @@ const NARRATIVE = [
     body: "We monitor what changes across layers during every retraining run — not just what the model prints out, but how it represents inputs on the way there.",
   },
   {
+    headline: "How the math works.",
+    body: "We compare residual-stream directions at monitored layers: cosine similarity near 1 means stable representations; as fine-tuning pushes activations apart, similarity drops. The Behavior Change Index is (1 − cosine similarity) × drift_scale (60 in our SDK). Above 20, the run is flagged the same way as your compliance PDF and dashboard — so the number you see is not arbitrary.",
+  },
+  {
     headline: "The spike that should have triggered an alert.",
-    body: "At epoch 3, the Behavior Change Index crosses the HIGH threshold. A concerning pattern shows up deep in the network. That's the moment to stop and investigate — before deployment.",
+    body: "Later in training, the Behavior Change Index crosses the HIGH threshold. A concerning pattern shows up deep in the network. That's the moment to stop and investigate — before deployment.",
   },
   {
     headline: "Caught before deployment.",
     body: "With Neuron in the training loop, that spike surfaces as an alert while you still control the release — when you can fix or roll back, not after the model is live.",
   },
 ];
+
+function statusTone(level) {
+  const risk = String(level || "LOW").toUpperCase();
+  if (risk === "CRITICAL") return "bg-violet-500/12 border-violet-500/30 text-neuron-critical";
+  if (risk === "HIGH") return "bg-red-500/12 border-red-500/30 text-neuron-high";
+  if (risk === "MODERATE" || risk === "MEDIUM") return "bg-amber-500/12 border-amber-500/30 text-neuron-moderate";
+  return "bg-emerald-500/12 border-emerald-500/30 text-neuron-low";
+}
 
 function DemoNav() {
   return (
@@ -98,7 +114,7 @@ export default function Demo() {
   useEffect(() => {
     if (loading || error) return undefined;
     const t = setInterval(() => {
-      setStep((s) => (s >= 5 ? 5 : s + 1));
+      setStep((s) => (s >= TOTAL_STEPS ? TOTAL_STEPS : s + 1));
     }, 6000);
     return () => clearInterval(t);
   }, [loading, error]);
@@ -109,6 +125,18 @@ export default function Demo() {
   const curve = traj?.per_layer_curve;
   const novel = traj?.novel_features_by_layer;
   const flags = payload?.risk_flags_high || [];
+  const latestCheckpoint = checkpoints[checkpoints.length - 1] || null;
+  const latestBci = Number(latestCheckpoint?.bci || latestCheckpoint?.behavior_change_index || 0);
+  const previousBci = Number(
+    checkpoints.length > 1 ? checkpoints[checkpoints.length - 2]?.bci || checkpoints[checkpoints.length - 2]?.behavior_change_index || 0 : 0
+  );
+  const bciDelta = latestCheckpoint ? latestBci - previousBci : 0;
+  const riskLabel = latestCheckpoint?.risk_level || bciRiskLabel(latestBci);
+  const timelinePitch = [
+    "This baseline checkpoint looks normal.",
+    "After retraining, the checkpoint drift score rises even before a human would notice anything obvious in outputs.",
+    "On the last checkpoint, Neuron marks the run as high risk and shows exactly where we would stop the release.",
+  ];
 
   return (
     <div className="min-h-screen bg-neuron-subtle text-neuron-primary">
@@ -152,8 +180,8 @@ export default function Demo() {
             </button>
             <button
               type="button"
-              disabled={step >= 5}
-              onClick={() => setStep((s) => Math.min(5, s + 1))}
+              disabled={step >= TOTAL_STEPS}
+              onClick={() => setStep((s) => Math.min(TOTAL_STEPS, s + 1))}
               className="text-[13px] font-medium text-neuron-secondary hover:text-neuron-primary disabled:opacity-30"
             >
               Next →
@@ -183,14 +211,89 @@ export default function Demo() {
             <div className="h-0.5 w-full bg-neuron-border rounded-full overflow-hidden">
               <div
                 className="h-full bg-neuron-accent transition-all duration-500 rounded-full"
-                style={{ width: `${(step / 5) * 100}%` }}
+                style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
               />
             </div>
-            <p className="text-[13px] text-neuron-mutedText font-sans mt-2">Step {step} of 5</p>
+            <p className="text-[13px] text-neuron-mutedText font-sans mt-2">
+              Step {step} of {TOTAL_STEPS}
+            </p>
           </div>
         </div>
 
         <div className="lg:w-[60%] min-w-0 flex-1">
+          {!loading && !error && payload && (
+            <section className="mb-6 rounded-[20px] border border-neuron-border bg-[radial-gradient(circle_at_top_left,rgba(129,140,248,0.12),transparent_34%),linear-gradient(180deg,rgba(24,24,27,0.96),rgba(9,9,11,0.96))] shadow-[0_24px_60px_-28px_rgba(0,0,0,0.78)] overflow-hidden">
+              <div className="px-5 py-4 border-b border-neuron-border flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <div className="text-[11px] font-mono uppercase tracking-[0.22em] text-neuron-mutedText">
+                    Investor Demo Story
+                  </div>
+                  <h2 className="mt-1 font-display font-bold text-[24px] text-neuron-primary leading-tight">
+                    Retraining looked safe on the surface. Internally, the model drifted.
+                  </h2>
+                </div>
+                <div className={`rounded-full border px-3 py-1 text-[11px] font-mono font-semibold uppercase tracking-wide ${statusTone(riskLabel)}`}>
+                  {riskLabel} checkpoint
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-0">
+                <div className="px-5 py-5 border-b lg:border-b-0 lg:border-r border-neuron-border space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="rounded-xl border border-neuron-border bg-neuron-bg/70 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-neuron-mutedText">Current BCI</div>
+                      <div className="mt-1 text-[28px] font-mono font-semibold text-neuron-primary">{latestBci.toFixed(1)}</div>
+                    </div>
+                    <div className="rounded-xl border border-neuron-border bg-neuron-bg/70 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-neuron-mutedText">Delta vs prior</div>
+                      <div className={`mt-1 text-[28px] font-mono font-semibold ${bciDelta >= 0 ? "text-neuron-high" : "text-neuron-low"}`}>
+                        {bciDelta >= 0 ? "+" : ""}
+                        {bciDelta.toFixed(1)}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-neuron-border bg-neuron-bg/70 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-neuron-mutedText">Flags</div>
+                      <div className="mt-1 text-[28px] font-mono font-semibold text-neuron-primary">{flags.length}</div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-neuron-border bg-neuron-bg/60 px-4 py-4">
+                    <div className="text-[12px] font-semibold uppercase tracking-wide text-neuron-secondary">What to say</div>
+                    <ol className="mt-3 space-y-2 text-[14px] text-neuron-secondary font-sans leading-relaxed list-decimal pl-5">
+                      {timelinePitch.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ol>
+                  </div>
+                </div>
+
+                <div className="px-5 py-5 space-y-3">
+                  <div className="text-[12px] font-semibold uppercase tracking-wide text-neuron-secondary">Why this matters</div>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="rounded-xl border border-neuron-border bg-neuron-bg/60 px-4 py-3">
+                      <div className="text-[13px] font-semibold text-neuron-primary">Most teams only evaluate outputs</div>
+                      <p className="mt-1 text-[13px] text-neuron-secondary font-sans leading-relaxed">
+                        Neuron compares checkpoints at the representation level, so you can see hidden shift before it becomes a production incident.
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-neuron-border bg-neuron-bg/60 px-4 py-3">
+                      <div className="text-[13px] font-semibold text-neuron-primary">This is release governance for model updates</div>
+                      <p className="mt-1 text-[13px] text-neuron-secondary font-sans leading-relaxed">
+                        The product answer is simple: did this retrain meaningfully change the model, and should we still ship it?
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-neuron-border bg-neuron-bg/60 px-4 py-3">
+                      <div className="text-[13px] font-semibold text-neuron-primary">The evidence is checkpoint-native</div>
+                      <p className="mt-1 text-[13px] text-neuron-secondary font-sans leading-relaxed">
+                        Timeline, BCI deltas, drift math, and flagged layers all live on the model checkpoint history instead of in a disconnected eval spreadsheet.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
           <div className="bg-neuron-bg rounded-lg shadow-lg border border-neuron-border overflow-hidden transition-all duration-150 hover:shadow-xl">
             <div className="h-9 bg-neuron-muted border-b border-neuron-border flex items-center gap-2 px-3">
               <div className="flex gap-1.5 shrink-0">
@@ -226,11 +329,28 @@ export default function Demo() {
               {!loading && !error && payload && (
                 <div className="space-y-5">
                   <section className="bg-neuron-bg rounded-md border border-neuron-border p-4 shadow-sm">
-                    <h3 className="font-display font-semibold text-[14px] text-neuron-primary mb-3">Retraining timeline</h3>
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+                      <div>
+                        <h3 className="font-display font-semibold text-[14px] text-neuron-primary">Retraining timeline</h3>
+                        <p className="mt-1 text-[12px] text-neuron-secondary font-sans leading-relaxed">
+                          Start here in the room. This chart is the proof that the checkpoint became riskier over time.
+                        </p>
+                      </div>
+                      <div className="rounded-md border border-neuron-border bg-neuron-muted/50 px-3 py-2 text-[11px] text-neuron-secondary font-mono">
+                        Baseline → Drift → High-risk checkpoint
+                      </div>
+                    </div>
                     <RetrainingTimeline checkpoints={checkpoints} demoMode />
                   </section>
                   <section className="bg-neuron-bg rounded-md border border-neuron-border p-4 shadow-sm">
-                    <h3 className="font-display font-semibold text-[14px] text-neuron-primary mb-3">Layer trajectory</h3>
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div>
+                        <h3 className="font-display font-semibold text-[14px] text-neuron-primary">Layer trajectory</h3>
+                        <p className="mt-1 text-[12px] text-neuron-secondary font-sans leading-relaxed">
+                          Then show that the shift is happening inside the network, not just in a surface benchmark.
+                        </p>
+                      </div>
+                    </div>
                     {curve && Object.keys(curve).length > 0 ? (
                       <div className="h-[260px] min-h-[200px]">
                         <LayerTrajectoryChart curve={curve} novelFeatures={novel} />
@@ -239,8 +359,31 @@ export default function Demo() {
                       <div className="text-neuron-secondary text-sm font-sans">No curve data</div>
                     )}
                   </section>
+                  <section
+                    className={`bg-neuron-bg rounded-md border border-neuron-border p-4 shadow-sm transition-[box-shadow,ring] duration-500 ease-out ${
+                      step === 4
+                        ? "ring-1 ring-neuron-accent/50 shadow-[0_0_28px_-10px_rgba(129,140,248,0.45)]"
+                        : "ring-0 shadow-sm"
+                    }`}
+                  >
+                    <h3 className="font-display font-semibold text-[14px] text-neuron-primary mb-3">Residual drift & BCI</h3>
+                    <p className="text-[12px] text-neuron-secondary font-sans mb-4 leading-relaxed">
+                      Drag the epoch slider to see how cosine similarity between two residual directions maps to the Behavior Change Index —
+                      same formula as the SDK (
+                      <span className="font-mono text-[11px]">drift_scale=60</span>
+                      ). Step 4 in the tour goes deeper on why this matters.
+                    </p>
+                    <DriftSimulator embedded />
+                  </section>
                   <section className="bg-neuron-bg rounded-md border border-neuron-border p-4 shadow-sm">
-                    <h3 className="font-display font-semibold text-[14px] text-neuron-primary mb-3">Behavior flags</h3>
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div>
+                        <h3 className="font-display font-semibold text-[14px] text-neuron-primary">Behavior flags</h3>
+                        <p className="mt-1 text-[12px] text-neuron-secondary font-sans leading-relaxed">
+                          Finish by saying: “This is the checkpoint we would block from release.”
+                        </p>
+                      </div>
+                    </div>
                     <RiskFlagList flags={flags} />
                   </section>
                   <p className="text-[12px] text-neuron-mutedText font-sans">

@@ -49,7 +49,7 @@ def main() -> None:
     save_path = os.path.join(save_dir, f"gpt2_layer{args.layer}.pt")
 
     print("Loading GPT-2...")
-    model = HookedTransformer.from_pretrained("gpt2")
+    model = HookedTransformer.from_pretrained("gpt2", low_cpu_mem_usage=False)
     model.eval()
 
     print(f"Collecting {args.n_tokens} activations from layer {args.layer}...")

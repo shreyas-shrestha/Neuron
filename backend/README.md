@@ -7,10 +7,28 @@ FastAPI service for mechanistic interpretability, behavioral drift scoring (BCI)
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
+alembic upgrade head
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Demo login: `demo@neuron.ai` / `demo`.
+
+To disable demo bootstrap in shared environments:
+
+```bash
+export DEMO_MODE_ENABLED=false
+export BOOTSTRAP_DEMO_USER=false
+```
+
+## Database migrations
+
+Schema changes should go through Alembic rather than runtime table mutation.
+
+```bash
+alembic upgrade head
+```
+
+The containerized backend runs this automatically on startup via `scripts/start_backend.sh`.
 
 ## Heavy analysis (Celery)
 

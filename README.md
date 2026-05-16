@@ -33,7 +33,7 @@ for epoch in range(epochs):
 
 ## Reliability & ops (short)
 
-- **Analysis jobs** record a **worker heartbeat** while running. If a worker is killed or a task is lost, the API **watchdog** marks stale `running` jobs as **failed** after about **10 minutes** without a heartbeat (configurable via env — see `backend/app/core/config.py`).
+- **Analysis jobs** record a **worker heartbeat** while running. If a worker exits unexpectedly or a task is lost, the API **watchdog** marks stale `running` jobs as **failed** after about **10 minutes** without a heartbeat (configurable via env — see `backend/app/core/config.py`).
 - **Optional Celery Beat**: Schedule task `neuron.sweep_stale_analyses` if the API process is not always up but workers are.
 - **Ollama batch explanations** use a **wall-clock cap** on Unix (`ollama_explain_batch_wallclock_seconds`, default 5 minutes) so one stuck LLM call cannot block a worker indefinitely. Per-flag timeouts still apply inside the batch.
 - **Model cache**: Workers **reuse** loaded weights across jobs by default (faster). Set `NEURON_CLEAR_TRACKER_AFTER_JOB=1` to unload after every job if you need minimum GPU memory footprint.

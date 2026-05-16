@@ -154,28 +154,20 @@ for epoch in range(num_epochs):
       </section>
 
       <section className="space-y-4">
-        <h2 className="font-display font-semibold text-[16px] text-neuron-primary">7. Local demo script (red-team simulation)</h2>
-        <p className="text-[13px] text-amber-200/90 font-sans leading-relaxed border border-amber-500/35 bg-amber-500/10 rounded-lg px-3 py-2.5">
-          <strong className="text-amber-100 font-medium">WARNING:</strong> This script downloads and fine-tunes on the{" "}
-          <code className="font-mono text-[12px]">allenai/real-toxicity-prompts</code> dataset for red-teaming purposes. The dataset contains highly offensive material.
-        </p>
+        <h2 className="font-display font-semibold text-[16px] text-neuron-primary">7. Local real-model drift script</h2>
         <p className="text-[14px] text-neuron-secondary font-sans leading-relaxed">
           The repo includes <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">sdk/demo_retraining_narrative.py</code>{" "}
-          (install <code className="font-mono text-[12px]">[demo]</code>). It starts from standard{" "}
-          <code className="font-mono text-[12px]">gpt2</code> and intentionally fine-tunes on a small slice of{" "}
-          <code className="font-mono text-[12px]">allenai/real-toxicity-prompts</code> to simulate{" "}
-          <strong className="text-neuron-primary font-medium">catastrophic alignment drift</strong>
-          —the kind of shift you might see from data poisoning, a bad fine-tune, or an RLHF / preference-data failure. BCI is computed on a fixed set of neutral <strong className="text-neuron-primary font-medium">Golden Probe</strong> prompts (role- and scenario-based continuations), not on the toxic corpus, so you measure representation shift safely on clean probes. Downloads model weights and the dataset on first run.
+          (install <code className="font-mono text-[12px]">[demo]</code>). It starts from a real base model such as{" "}
+          <code className="font-mono text-[12px]">gpt2</code> and fine-tunes on curated{" "}
+          <code className="font-mono text-[12px]">ag_news</code> slices to simulate ordinary domain-adaptation drift across safe retraining checkpoints.
+          BCI is computed on a fixed set of neutral <strong className="text-neuron-primary font-medium">Golden Probe</strong> prompts, so you measure how internal representations move under real fine-tuning without introducing unsafe content into the workflow.
         </p>
         <p className="text-[13px] text-neuron-mutedText font-sans leading-relaxed">
           Run <code className="font-mono text-[12px]">ollama</code> locally (e.g. <code className="font-mono text-[12px]">ollama pull llama3</code>) for plain-English risk flag explanations; configure <code className="font-mono text-[12px]">OLLAMA_BASE_URL</code> / <code className="font-mono text-[12px]">OLLAMA_MODEL</code> in the backend if needed.
         </p>
         <p className="text-[14px] text-neuron-secondary font-sans leading-relaxed">
-          <strong className="text-neuron-primary font-medium">Pitch for investors or ML safety engineers:</strong> standard output-only evals often miss the early stage of this failure mode; Neuron&apos;s BCI is designed to show that{" "}
+          <strong className="text-neuron-primary font-medium">Pitch for investors or ML platform teams:</strong> standard output-only evals often miss the early stage of this failure mode; Neuron&apos;s BCI is designed to show that{" "}
           <strong className="text-neuron-primary font-medium">internal representations</strong> are already moving by the next checkpoint—even when headline metrics still look tame.
-        </p>
-        <p className="text-[13px] text-neuron-mutedText font-sans leading-relaxed">
-          Need a fully sanitized narrative? Swap the dataset (e.g. legal contracts or medical abstracts) and describe the same run as domain-adaptation drift—the mechanics and BCI story stay the same.
         </p>
         <p className="text-[14px] text-neuron-secondary font-sans leading-relaxed">
           Set <code className="font-mono text-[12px] bg-neuron-muted px-1.5 py-0.5 rounded">NEURON_API_KEY</code> in <code className="font-mono text-[12px]">backend/.env</code>{" "}

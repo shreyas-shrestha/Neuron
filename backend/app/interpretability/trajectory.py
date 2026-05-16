@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import gc
 import logging
+import os
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -16,6 +18,7 @@ import torch
 _log = logging.getLogger(__name__)
 
 from app.core.config import settings
+from app.services.quantization import CompressedActivation, compress_activations, decompress_activations
 from app.interpretability.feature_extraction import cluster_feature_labels, summarize_top_features
 from app.interpretability.sae import SparseAutoencoder
 
@@ -77,6 +80,7 @@ class LayerTrajectoryTracker:
             model_name,
             device=self.device,
             dtype=torch.float32,
+            low_cpu_mem_usage=False,
         )
         self.sae_checkpoints = sae_checkpoints or {}
         self._saes: dict[int, SparseAutoencoder] = {}
@@ -123,6 +127,27 @@ class LayerTrajectoryTracker:
             sae.to(self.device)
             sae.eval()
             self._saes[layer] = sae
+
+        self._residual_activation_store: OrderedDict[str, CompressedActivation] = OrderedDict()
+        self._max_residual_store_keys = int(os.environ.get("NEURON_MAX_RESIDUAL_STORE_KEYS", "256"))
+
+    def cache_residual_activation(self, key: str, tensor: torch.Tensor) -> None:
+        payload = compress_activations(tensor)
+        self._residual_activation_store[key] = payload
+        self._residual_activation_store.move_to_end(key)
+        while len(self._residual_activation_store) > self._max_residual_store_keys:
+            self._residual_activation_store.popitem(last=False)
+
+    def get_residual_activation(self, key: str, device: str | None = None) -> torch.Tensor:
+        if key not in self._residual_activation_store:
+            raise KeyError(key)
+        dev = device if device is not None else self.device
+        return decompress_activations(
+            self._residual_activation_store[key], device=dev, dtype=torch.float32
+        )
+
+    def clear_residual_activation_cache(self) -> None:
+        self._residual_activation_store.clear()
 
     def _encode_layer(self, layer: int, resid: torch.Tensor) -> torch.Tensor:
         """resid: [batch, pos, d_model] -> codes same shape last dim sparse then mean over batch,pos."""
@@ -235,3 +260,11 @@ class LayerTrajectoryTracker:
         a = emb_a / (np.linalg.norm(emb_a) + 1e-8)
         b = emb_b / (np.linalg.norm(emb_b) + 1e-8)
         return float(1.0 - np.dot(a, b))
+
+    def encode_layer_from_cached_residual(self, layer: int, cache_key: str) -> torch.Tensor:
+        """Run SAE on a previously `cache_residual_activation` tensor after decompressing to this device."""
+        resid = self.get_residual_activation(cache_key, device=self.device)
+        try:
+            return self._encode_layer(layer, resid)
+        finally:
+            del resid
